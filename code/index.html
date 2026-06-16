@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="GEO Restock">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f172a">
+<title>GEO Restock</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+button,input{touch-action:manipulation}
+html,body{height:100%;background:#0f172a;overflow:hidden}
+body{font-family:-apple-system,system-ui,sans-serif;color:#e2e8f0}
+#app{height:100vh;display:flex;flex-direction:column;position:relative;overflow:hidden}
+.hdr{background:#1a2540;padding:13px 16px;border-bottom:1px solid #2a3a5c;flex-shrink:0}
+.hdr-row{display:flex;align-items:center;gap:8px}
+.hdr-title{font-size:16px;font-weight:700;color:#e2e8f0}
+.hdr-sub{font-size:11px;color:#4a5a7a;margin-top:1px}
+.back{background:none;border:none;color:#38bdf8;font-size:28px;cursor:pointer;padding:0 6px 0 0;line-height:1;flex-shrink:0}
+.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:max(80px,env(safe-area-inset-bottom))}
+input{width:100%;padding:13px 14px;background:#1a2540;border:1px solid #2a3a5c;border-radius:10px;color:#e2e8f0;font-size:16px;outline:none;-webkit-appearance:none;display:block}
+.btn{border:none;border-radius:10px;padding:13px 16px;font-size:15px;font-weight:600;cursor:pointer;width:100%;display:block;text-align:center}
+.btn+.btn{margin-top:10px}
+.blue{background:#38bdf8;color:#0f172a}
+.green{background:#22c55e;color:#fff}
+.ghost{background:#1a2540;color:#7a8fb5;border:1px solid #2a3a5c}
+.sm{padding:8px 12px;font-size:13px;width:auto}
+.offline-pill{position:fixed;top:max(6px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);background:#7c2d12;color:#fed7aa;font-size:11px;font-weight:700;padding:4px 12px;border-radius:12px;z-index:900;display:none;border:1px solid rgba(251,146,60,.4)}
+/* Team selection */
+.team-screen{height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 20px;overflow-y:auto}
+.team-grid{display:flex;flex-direction:column;gap:12px;width:100%;max-width:340px}
+.team-card{border:none;border-radius:18px;padding:20px 22px;cursor:pointer;text-align:left;display:flex;align-items:center;gap:16px;width:100%;touch-action:manipulation}
+.team-card-icon{font-size:34px;flex-shrink:0;width:46px;text-align:center;line-height:1}
+.team-card-label{font-size:22px;font-weight:800;letter-spacing:.01em}
+.team-card-sub{font-size:12px;opacity:.6;margin-top:3px;font-weight:500}
+/* Nav cards */
+.nav-card{border-radius:14px;padding:20px;width:100%;text-align:left;cursor:pointer;display:flex;align-items:center;gap:14px;margin-bottom:12px;border:none}
+.nav-card-title{font-size:17px;font-weight:700;color:#e2e8f0}
+.nav-card-sub{font-size:12px;color:#7a8fb5;margin-top:3px}
+.report-link{background:#1a2540;color:#38bdf8;border:1px solid #2a3a5c;border-radius:10px;padding:12px 16px;font-size:14px;font-weight:600;cursor:pointer;width:100%;text-align:center;margin-bottom:12px;display:block}
+/* Search */
+.search-wrap{padding:8px 20px 4px}
+.search-lbl{font-size:16px;font-weight:700;color:#7a8fb5;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+.search-input-wrap{position:relative}
+.search-input-wrap input{padding-right:44px}
+.srch-clr{position:absolute;right:0;top:0;bottom:0;width:44px;background:none;border:none;color:#7a8fb5;font-size:18px;cursor:pointer;display:none;align-items:center;justify-content:center}
+/* Categories */
+.cat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px}
+.cat-tile{background:#1a2540;border:1px solid #2a3a5c;border-radius:12px;padding:16px 14px;cursor:pointer;text-align:left}
+.cat-tile.has-use{background:#0d2a4a;border-color:rgba(56,189,248,.3)}
+.ct-name{font-size:13px;font-weight:600;color:#e2e8f0;margin-bottom:4px}
+.ct-count{font-size:11px;color:#4a5a7a}
+.ct-used{font-size:11px;color:#38bdf8;font-weight:600;margin-top:3px}
+/* Items */
+.item-row{display:flex;align-items:center;padding:13px 16px;cursor:pointer;width:100%;text-align:left;background:transparent;border:none;border-bottom:1px solid #101e35}
+.item-row.used{background:#0d2038}
+.item-name{font-size:14px;color:#7a8fb5;font-weight:400}
+.item-row.used .item-name{color:#e2e8f0;font-weight:600}
+.item-meta{font-size:11px;color:#2a3a5c;margin-top:1px}
+.badge{background:rgba(239,68,68,.15);color:#ef4444;border-radius:8px;padding:3px 9px;font-size:13px;font-weight:700;margin-right:4px}
+.badge.flag{background:rgba(56,189,248,.15);color:#38bdf8}
+.chevron{color:#2a3a5c;font-size:18px;flex-shrink:0;margin-left:6px}
+.wh-count{padding:14px 20px 6px;font-size:13px;color:#7a8fb5;font-weight:600}
+.wh-count b{color:#e2e8f0}
+/* Report */
+.sec-hdr{padding:7px 16px;background:#101e35;font-size:11px;font-weight:700;color:#7a8fb5;text-transform:uppercase;letter-spacing:.06em;position:sticky;top:0;z-index:1}
+.rep-row{display:flex;align-items:center;padding:13px 16px;border-bottom:1px solid #101e35;cursor:pointer;width:100%;background:transparent;border-left:none;border-right:none;border-top:none;text-align:left}
+/* Popup / detail */
+.overlay{position:absolute;inset:0;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;z-index:50;padding:24px}
+.popup{background:#1a2540;border-radius:16px;padding:22px;width:100%;max-width:330px;border:1px solid #2a3a5c;max-height:88vh;overflow-y:auto}
+.pop-img{width:100%;height:170px;border-radius:12px;background:#0f172a;border:1px solid #2a3a5c;margin-bottom:16px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.pop-img img{width:100%;height:100%;object-fit:contain}
+.img-ph{color:#3a4a6c;font-size:13px;font-weight:600}
+.pop-name{font-size:17px;font-weight:700;margin-bottom:4px;line-height:1.3}
+.pop-meta{font-size:14px;color:#7a8fb5;margin-bottom:18px}
+.pop-meta .hl{color:#e2e8f0;font-weight:600}
+.pop-lbl{font-size:12px;color:#7a8fb5;font-weight:600;margin-bottom:8px}
+.qty-row{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.qty-btn{width:50px;height:50px;border-radius:10px;border:none;font-size:26px;font-weight:700;cursor:pointer;flex-shrink:0}
+.qty-minus{background:#ef4444;color:#fff}
+.qty-minus.off{background:#2a3a5c;opacity:.3;cursor:default}
+.qty-plus{background:#22c55e;color:#fff}
+.qty-input{flex:1;text-align:center;font-size:26px;font-weight:700;padding:10px;background:#0f172a;border:1px solid #2a3a5c;border-radius:10px;color:#e2e8f0}
+/* Checkbox controls */
+.chk{display:flex;align-items:center;gap:12px;width:100%;background:#0f172a;border:1px solid #2a3a5c;border-radius:12px;padding:14px 16px;cursor:pointer;margin-bottom:12px;text-align:left}
+.chk .box{width:26px;height:26px;border-radius:7px;border:2px solid #3a4a6c;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;color:#0f172a}
+.chk.on{border-color:#22c55e;background:#0c2a18}
+.chk.on .box{background:#22c55e;border-color:#22c55e}
+.chk .lbl{font-size:15px;font-weight:600;color:#e2e8f0}
+.chk .lbl small{display:block;font-size:12px;font-weight:500;color:#7a8fb5;margin-top:2px}
+.detail-stat{background:#0f172a;border:1px solid #2a3a5c;border-radius:10px;padding:12px 14px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.detail-stat .k{font-size:12px;color:#7a8fb5;font-weight:600}
+.detail-stat .v{font-size:18px;color:#e2e8f0;font-weight:700}
+/* Toast */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#166534;color:#bbf7d0;padding:10px 22px;border-radius:20px;font-size:14px;font-weight:600;z-index:999;pointer-events:none;white-space:nowrap;display:none;border:1px solid rgba(34,197,94,.3)}
+/* Sync status dot */
+.sync-pill{width:15px;height:15px;min-width:15px;border-radius:50%;background:#22c55e;border:2px solid #0c2a18;padding:0;cursor:pointer;flex-shrink:0;box-shadow:0 0 7px rgba(34,197,94,.55)}
+.sync-pill.pending{background:#ef4444;border-color:#3a0f0f;box-shadow:0 0 7px rgba(239,68,68,.65)}
+.sync-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-start;justify-content:flex-end;z-index:1000;padding:max(56px,calc(env(safe-area-inset-top) + 50px)) 12px 0}
+.syncbox{background:#1a2540;border:1px solid #2a3a5c;border-radius:14px;padding:18px;width:258px;max-width:82vw;box-shadow:0 12px 44px rgba(0,0,0,.55)}
+.syncrow{display:flex;align-items:flex-start;gap:12px}
+.sdotbig{width:14px;height:14px;border-radius:50%;flex-shrink:0;margin-top:3px}
+.sdotbig.g{background:#22c55e}.sdotbig.r{background:#ef4444}
+.syncbox b{font-size:14px;color:#e2e8f0}
+.syncsub{font-size:11px;color:#7a8fb5;margin-top:2px}
+.syncdiv{height:1px;background:#2a3a5c;margin:14px 0}
+.syncrow2{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#7a8fb5}
+.syncrow2 b{font-size:17px;color:#38bdf8}
+.syncoff{font-size:11px;color:#fed7aa;margin-top:12px;background:#7c2d12;border-radius:8px;padding:7px 10px;border:1px solid rgba(251,146,60,.4)}
+.refresh-sub{text-align:center;font-size:11px;color:#4a5a7a;margin-top:6px}
+/* Warehouse view toggle + grid */
+.icon-btn{background:#1a2540;border:1px solid #2a3a5c;color:#9fb3d4;border-radius:8px;width:34px;height:34px;font-size:16px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0}
+.wh-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:10px}
+.wh-tile{background:#1a2540;border:1px solid #2a3a5c;border-radius:8px;padding:5px;cursor:pointer;text-align:center;position:relative;overflow:hidden}
+.wh-tile.flagged{border-color:#38bdf8;background:#0d2a4a}
+.wh-thumb{width:100%;aspect-ratio:1;border-radius:5px;background:#0f172a;display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:4px}
+.wh-thumb img{width:100%;height:100%;object-fit:contain}
+.wh-thumb .img-ph{font-size:9px;color:#3a4a6c}
+.wh-tile-name{font-size:9px;color:#94a3b8;line-height:1.15;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.wh-tile-badge{position:absolute;top:3px;right:3px;background:#38bdf8;color:#0f172a;font-size:7px;font-weight:800;padding:1px 4px;border-radius:4px}
+.detail-stat.tappable{cursor:pointer;border-color:#2a4a6c}
+.detail-stat.tappable .k{color:#38bdf8}
+.team-logo{max-width:200px;max-height:120px;width:auto;height:auto;margin-bottom:18px;object-fit:contain}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" class="toast"></div>
+<div id="offpill" class="offline-pill">⚠ Offline — changes will sync</div>
+<div id="syncinfo" class="sync-overlay" onclick="hideSyncInfo()"></div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey:"AIzaSyDuI7AKeK-iKcTecsxWe44jpgB3TptNxOA",
+  authDomain:"geo-restock.firebaseapp.com",
+  databaseURL:"https://geo-restock-default-rtdb.firebaseio.com",
+  projectId:"geo-restock",
+  storageBucket:"geo-restock.firebasestorage.app",
+  messagingSenderId:"706685836560",
+  appId:"1:706685836560:web:797969cfffa2ac8751d995"
+});
+const DB=firebase.database();
+
+// ── TEAMS ─────────────────────────────────────────────────────────────────────
+const TEAMS={
+  gold:    {label:'Gold',    color:'#f59e0b',bg:'#271c00',border:'#4a3500',icon:'🏅'},
+  cobalt:  {label:'Cobalt',  color:'#60a5fa',bg:'#001440',border:'#0c2a6e',icon:'🔷'},
+  titanium:{label:'Titanium',color:'#94a3b8',bg:'#141820',border:'#2c3348',icon:'⚙️'},
+  krypton: {label:'Krypton', color:'#4ade80',bg:'#001a0a',border:'#0a3020',icon:'⚡'},
+  test:    {label:'Test',    color:'#a78bfa',bg:'#1a1530',border:'#2e2350',icon:'🧪'},
+};
+const isTest=()=>team==='test';
+
+// ── DATA (loaded from GeothermParts.json) ─────────────────────────────────────
+let PARTS=[];           // mapped part objects
+let PMAP={};            // id -> part
+function mapPart(r){
+  const rt=r["Restock Type"];
+  const bucket=r["Is Geo Trailer Stock"]?'trailer':(r["Is Geo Case Stock"]?'cases':'warehouse');
+  return {
+    id:r["Master Record ID"],
+    name:r["Description"]||'',
+    cat:r["Location"]||'',
+    bucket,
+    onTrailer:r["Is On Trailer"]===true,
+    restockType:rt,
+    isEach:(rt||'').toString().toLowerCase()==='each',
+    refill:rt && rt.toLowerCase()!=='each' ? rt : null,
+    refillTo:(rt && rt.toLowerCase()!=='each') ? (r["Trailer Stock Max"]!=null?String(r["Trailer Stock Max"]):(rt||'—')) : null, // "1/2 Bin","Full Bin",20…
+    trailerMax:r["Trailer Stock Max"],
+    trailerMin:r["Trailer Stock Min"],
+    shopMin:r["Warehouse Min QTY"],
+    shopOrderQty:r["Warehouse Order QTY"],
+    vendor:r["Vendor"]||'',
+    vendorPart:r["VEN Part #"],
+    img:r["Image Path"]||'',
+    macro:r["Macro Sort"]||'',
+    micro:Number(r["Micro Sort"])||0
+  };
+}
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let team=localStorage.getItem('g_team')||null;
+let allUsage={},shopFlags={},searchQ='',whQ='';
+let scr=team?'loading':'team';
+let stockSrc=null,activeCat=null;
+let popup=null,popQty=0,popFlag=false;          // usage popup
+let repDetail=null,repRecv=false,repBelow=false; // report detail
+let whDetail=null,whRestock=false;               // warehouse detail
+let _usageRef=null,_shopRef=null;
+let pendingWrites=0,refreshing=false,whView='list';
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+const $=id=>document.getElementById(id);
+const h=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const ti=()=>team?TEAMS[team]:{label:'',color:'#38bdf8',bg:'#0f172a',border:'#2a3a5c',icon:''};
+const bucketParts=b=>PARTS.filter(p=>p.bucket===b);
+const macroSort=(a,b)=>a.macro<b.macro?-1:a.macro>b.macro?1:a.micro-b.micro;
+const cats=b=>{const seen={};bucketParts(b).slice().sort(macroSort).forEach(p=>{if(!(p.cat in seen))seen[p.cat]=p.macro});return Object.keys(seen);};
+const catParts=(b,cat)=>bucketParts(b).filter(p=>p.cat===cat).sort(macroSort);
+const isLogged=p=>{const u=allUsage[p.id];return p.isEach?(Number(u)>0):(u===true||u==='true');};
+const catUsed=(b,cat)=>catParts(b,cat).filter(isLogged).length;
+const loggedParts=()=>PARTS.filter(p=>p.onTrailer&&isLogged(p)).sort(macroSort);
+const loggedCats=()=>{const o=[];loggedParts().forEach(p=>{if(o.indexOf(p.cat)<0)o.push(p.cat)});return o;};
+const warehouseParts=()=>PARTS.filter(p=>!p.onTrailer);
+let _tt;function toast(msg){clearTimeout(_tt);const e=$('toast');e.textContent=msg;e.style.display='block';_tt=setTimeout(()=>e.style.display='none',2200);}
+function imgFail(el){if(el&&el.parentElement)el.parentElement.innerHTML='<div class="img-ph">No image</div>';}
+function imgBlock(p){return p.img?`<div class="pop-img"><img src="${h(p.img)}" alt="" onerror="imgFail(this)"></div>`:`<div class="pop-img"><div class="img-ph">No image</div></div>`;}
+
+// ── OFFLINE-AWARE WRITES + SYNC TRACKING ──────────────────────────────────────
+function queueLen(){try{return JSON.parse(localStorage.getItem('geo_wq')||'[]').length}catch(e){return 0}}
+function syncIsPending(){return pendingWrites>0||queueLen()>0}
+function setLastSync(){localStorage.setItem('geo_lastSync',String(Date.now()));}
+function queueWrite(path,value){
+  let q;try{q=JSON.parse(localStorage.getItem('geo_wq')||'[]')}catch(e){q=[]}
+  q.push({path,value});localStorage.setItem('geo_wq',JSON.stringify(q));
+}
+function flushQueue(){
+  let q;try{q=JSON.parse(localStorage.getItem('geo_wq')||'[]')}catch(e){q=[]}
+  if(!q.length){updSync();return;}
+  const rest=[];
+  q.forEach(op=>{
+    try{const ref=DB.ref(op.path);(op.value===null?ref.remove():ref.set(op.value)).then(setLastSync).catch(()=>rest.push(op));}
+    catch(e){rest.push(op)}
+  });
+  localStorage.setItem('geo_wq',JSON.stringify(rest));
+  updSync();
+}
+function dbWrite(path,value){
+  if(!navigator.onLine)queueWrite(path,value);
+  pendingWrites++;updSync();
+  let pr;
+  try{const ref=DB.ref(path);pr=(value===null?ref.remove():ref.set(value));}
+  catch(e){pr=Promise.reject(e);}
+  pr.then(()=>{pendingWrites--;setLastSync();updSync();})
+    .catch(()=>{pendingWrites--;queueWrite(path,value);updSync();});
+}
+function updOffPill(){const e=$('offpill');if(e)e.style.display=navigator.onLine?'none':'block';}
+function updSync(){const d=$('syncdot');if(d)d.className='sync-pill'+(syncIsPending()?' pending':'');updOffPill();}
+window.addEventListener('online',()=>{updOffPill();flushQueue();});
+window.addEventListener('offline',()=>{updOffPill();updSync();});
+
+// ── TIME + SYNC INFO POPUP ────────────────────────────────────────────────────
+function timeAgo(ms){
+  ms=Number(ms)||0;if(!ms)return'never';
+  const s=Math.floor((Date.now()-ms)/1000);
+  if(s<60)return'just now';
+  const m=Math.floor(s/60);if(m<60)return m+'m ago';
+  const hr=Math.floor(m/60);if(hr<24)return hr+'h ago';
+  const d=Math.floor(hr/24);if(d<7)return d+'d ago';
+  return new Date(ms).toLocaleDateString();
+}
+function lastRefreshTxt(){return timeAgo(localStorage.getItem('geo_lastRefresh'));}
+function sdot(){return`<button id="syncdot" class="sync-pill${syncIsPending()?' pending':''}" onclick="showSyncInfo()" title="Sync status"></button>`;}
+function showSyncInfo(){
+  const pend=pendingWrites+queueLen();
+  const synced=!syncIsPending();
+  const reorder=Object.keys(shopFlags||{}).length;
+  $('syncinfo').innerHTML=`<div class="syncbox" onclick="event.stopPropagation()">
+    <div class="syncrow"><span class="sdotbig ${synced?'g':'r'}"></span>
+      <div><b>${synced?'All changes synced':pend+' change'+(pend!==1?'s':'')+' pending'}</b>
+      <div class="syncsub">Last sync: ${h(timeAgo(localStorage.getItem('geo_lastSync')))}</div></div></div>
+    <div class="syncdiv"></div>
+    <div class="syncrow2"><span>🧾 Weekly reorder list</span><b>${reorder} item${reorder!==1?'s':''}</b></div>
+    ${!navigator.onLine?'<div class="syncoff">⚠ Offline — changes will sync on reconnect</div>':''}
+    <button class="btn ghost sm" style="width:100%;margin-top:16px;" onclick="hideSyncInfo()">Close</button>
+  </div>`;
+  $('syncinfo').style.display='flex';
+}
+function hideSyncInfo(){const e=$('syncinfo');if(e)e.style.display='none';}
+
+// ── CACHE REFRESH (manual button + weekly auto) ───────────────────────────────
+function refreshCache(){
+  if(refreshing)return;
+  if(!navigator.onLine){toast('Offline — connect to refresh');return;}
+  refreshing=true;render();
+  if(navigator.serviceWorker&&navigator.serviceWorker.controller){
+    try{navigator.serviceWorker.controller.postMessage({type:'REFRESH'});}catch(e){}
+  }
+  fetch('GeothermParts.json?v='+Date.now(),{cache:'no-store'})
+    .then(r=>{if(!r.ok)throw 0;return r.json();})
+    .then(raw=>{
+      PARTS=raw.map(mapPart);PMAP={};PARTS.forEach(p=>PMAP[p.id]=p);
+      localStorage.setItem('geo_lastRefresh',String(Date.now()));
+      refreshing=false;render();
+      toast('Data refreshed · '+PARTS.length+' items');
+    })
+    .catch(()=>{refreshing=false;render();toast('Refresh failed — try again');});
+}
+function maybeAutoRefresh(){
+  const last=Number(localStorage.getItem('geo_lastRefresh'))||0;
+  if(navigator.onLine && last && (Date.now()-last)>=7*864e5)refreshCache();
+}
+
+// ── SEARCH (any-order word match) ─────────────────────────────────────────────
+function matchSearch(p,q){
+  if(!q.trim())return false;
+  const words=q.toLowerCase().split(/\s+/).filter(Boolean);
+  const hay=(p.name+' '+p.cat).toLowerCase();
+  return words.every(w=>hay.includes(w));
+}
+function buildSearchResults(q){          // nav search = TRAILER parts only (on-trailer)
+  if(!q.trim())return'';
+  const res=PARTS.filter(p=>p.onTrailer&&matchSearch(p,q)).slice(0,15);
+  if(!res.length)return`<div style="padding:16px;text-align:center;color:#4a5a7a;font-size:13px;">No trailer parts for "${h(q)}"</div>`;
+  return res.map(p=>rowHTML(p,"openPopup")).join('');
+}
+function rowHTML(p,fn){
+  const logged=isLogged(p);
+  let right='';
+  if(logged){
+    right=p.isEach?`<span class="badge">-${allUsage[p.id]}</span>`:`<span class="badge flag">↻</span>`;
+  }else{right=`<span class="chevron">›</span>`;}
+  const tag=p.bucket==='trailer'?'🚛 Trailer':p.bucket==='cases'?'🧰 Cases':'📦 Warehouse';
+  return`<button onclick="${fn}(${p.id})" style="display:flex;align-items:center;width:100%;padding:12px 16px;background:${logged?'#0d2038':'transparent'};border:none;border-bottom:1px solid #101e35;text-align:left;cursor:pointer;">
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:14px;font-weight:${logged?'600':'400'};color:${logged?'#e2e8f0':'#94a3b8'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h(p.name)}</div>
+      <div style="font-size:11px;color:#4a5a7a;margin-top:2px;">${p.cat?h(p.cat)+' · ':''}${tag}</div>
+    </div>${right}
+  </button>`;
+}
+function updateSearch(q){searchQ=q;const el=$('sr');if(el)el.innerHTML=buildSearchResults(q);const c=$('sqc');if(c)c.style.display=q?'flex':'none';}
+function clearSearch(){searchQ='';const i=$('sq');if(i){i.value='';i.focus();}const e=$('sr');if(e)e.innerHTML='';const c=$('sqc');if(c)c.style.display='none';}
+
+function buildWhResults(q){
+  let res=warehouseParts();
+  if(q.trim())res=res.filter(p=>matchSearch(p,q));
+  res=res.slice().sort((a,b)=>a.name.localeCompare(b.name));
+  if(!res.length)return`<div style="padding:16px;text-align:center;color:#4a5a7a;font-size:13px;">No warehouse items for "${h(q)}"</div>`;
+  if(whView==='grid'){
+    return`<div class="wh-grid">`+res.map(p=>{
+      const flagged=!!shopFlags[p.id];
+      const img=p.img?`<img src="${h(p.img)}" alt="" onerror="imgFail(this)">`:`<div class="img-ph">No image</div>`;
+      return`<button class="wh-tile${flagged?' flagged':''}" onclick="openWh(${p.id})">
+        <div class="wh-thumb">${img}</div>
+        <div class="wh-tile-name">${h(p.name)}</div>
+        ${flagged?'<span class="wh-tile-badge">RESTOCK</span>':''}
+      </button>`;
+    }).join('')+`</div>`;
+  }
+  return res.map(p=>{
+    const flagged=!!shopFlags[p.id];
+    return`<button onclick="openWh(${p.id})" class="item-row${flagged?' used':''}">
+      <div style="flex:1;min-width:0;">
+        <div class="item-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h(p.name)}</div>
+        <div class="item-meta">Shop min: ${h(p.shopMin)}</div>
+      </div>
+      ${flagged?'<span class="badge flag">RESTOCK</span>':'<span class="chevron">›</span>'}
+    </button>`;
+  }).join('');
+}
+function toggleWhView(){whView=whView==='grid'?'list':'grid';render();}
+function updateWh(q){whQ=q;const el=$('whr');if(el)el.innerHTML=buildWhResults(q);const c=$('whc');if(c)c.style.display=q?'flex':'none';}
+function clearWh(){whQ='';const i=$('whq');if(i){i.value='';i.focus();}updateWh('');}
+
+// ── FIREBASE LISTENERS ────────────────────────────────────────────────────────
+function startListeners(){
+  if(_usageRef)_usageRef.off();
+  if(_shopRef)_shopRef.off();
+  _usageRef=DB.ref('geo-restock/teams/'+team+'/usage');
+  _usageRef.on('value',snap=>{allUsage=snap.val()||{};if(scr==='loading')scr='nav';render();},()=>{if(scr==='loading')scr='nav';render();});
+  _shopRef=DB.ref('geo-restock/shopReorder');
+  _shopRef.on('value',snap=>{shopFlags=snap.val()||{};render();},()=>{});
+}
+
+// ── ACTIONS ───────────────────────────────────────────────────────────────────
+function selectTeam(t){team=t;localStorage.setItem('g_team',t);allUsage={};scr='loading';render();startListeners();setTimeout(()=>{if(scr==='loading'){scr='nav';render();}},4000);}
+function goHome(){if(_usageRef){_usageRef.off();_usageRef=null;}if(_shopRef){_shopRef.off();_shopRef=null;}allUsage={};shopFlags={};searchQ='';whQ='';popup=null;repDetail=null;whDetail=null;team=null;localStorage.removeItem('g_team');scr='team';render();}
+function goStock(src){stockSrc=src;scr='cats';render();}
+function goCat(cat){activeCat=cat;scr='items';render();}
+function goReport(){scr='report';render();}
+function goWarehouse(){whQ='';scr='warehouse';render();}
+function goBack(){
+  if(scr==='items'){scr='cats';activeCat=null;}
+  else if(scr==='cats'){scr='nav';stockSrc=null;}
+  else if(scr==='report'||scr==='warehouse'){scr='nav';}
+  render();
+}
+
+// usage popup (trailer/cases parts)
+function openPopup(id){popup=PMAP[id];popQty=Number(allUsage[id])||0;popFlag=(allUsage[id]===true||allUsage[id]==='true');render();}
+function closePopup(){
+  if(!popup)return;
+  const path='geo-restock/teams/'+team+'/usage/'+popup.id;
+  if(popup.isEach){dbWrite(path,popQty>0?popQty:null);}
+  else{dbWrite(path,popFlag?true:null);}
+  popup=null;render();
+}
+function qAdj(d){popQty=Math.max(0,popQty+d);const i=$('qv');if(i)i.value=popQty;const m=$('qm');if(m)m.className='qty-btn qty-minus'+(popQty===0?' off':'');}
+function qInput(){popQty=Math.max(0,parseInt(($('qv')||{}).value)||0);}
+function toggleFlag(){popFlag=!popFlag;render();}
+
+// report detail (trailer/cases item) — two checkboxes
+function openRepDetail(id){repDetail=PMAP[id];repRecv=false;repBelow=!!shopFlags[id];render();}
+function editFromReport(id){repDetail=null;openPopup(id);}
+function toggleRecv(){repRecv=!repRecv;render();}
+function toggleBelow(){repBelow=!repBelow;render();}
+function commitRepDetail(){
+  const p=repDetail;if(!p)return;
+  if(repRecv)dbWrite('geo-restock/teams/'+team+'/usage/'+p.id,null);   // clear demand
+  if(!isTest())dbWrite('geo-restock/shopReorder/'+p.id, repBelow?shopRecord(p):null); // set/clear below-min flag
+  repDetail=null;
+  toast(isTest()?'Test — not saved to reorder':(repRecv?'Restocked ✓':'Saved'));
+  render();
+}
+
+// warehouse detail — single RESTOCK checkbox
+function openWh(id){whDetail=PMAP[id];whRestock=!!shopFlags[id];render();}
+function toggleWhRestock(){whRestock=!whRestock;render();}
+function commitWh(){
+  const p=whDetail;if(!p)return;
+  if(!isTest())dbWrite('geo-restock/shopReorder/'+p.id, whRestock?shopRecord(p):null);
+  whDetail=null;
+  toast(isTest()?'Test — not saved':(whRestock?'Flagged for reorder':'Cleared'));
+  render();
+}
+function shopRecord(p){return{flagged:true,team:team,ts:Date.now(),name:p.name,shopMin:(p.shopMin==null?null:p.shopMin),vendor:p.vendor||null,vendorPart:(p.vendorPart==null?null:p.vendorPart)};}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+function render(){$('app').innerHTML=buildHTML();updSync();}
+
+function buildHTML(){
+  const t=ti();
+  if(scr==='loading')return`<div style="height:100vh;display:flex;align-items:center;justify-content:center;color:#4a5a7a;font-size:16px;">Loading…</div>`;
+
+  // TEAM SELECT
+  if(scr==='team')return`
+    <div class="team-screen">
+      <img src="Logo.png" alt="" class="team-logo" onerror="this.style.display='none'">
+      <div style="font-size:30px;font-weight:800;color:#e2e8f0;margin-bottom:6px;">GEO Restock</div>
+      <div style="font-size:15px;color:#7a8fb5;margin-bottom:26px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;">Select Your Team</div>
+      <div class="team-grid">
+        ${Object.entries(TEAMS).map(([id,tm])=>`
+          <button class="team-card" onclick="selectTeam('${id}')" style="background:${tm.bg};border:2px solid ${tm.border};">
+            <div class="team-card-icon">${tm.icon}</div>
+            <div><div class="team-card-label" style="color:${tm.color};">${tm.label}</div>
+            <div class="team-card-sub" style="color:${tm.color};">tap to enter</div></div>
+          </button>`).join('')}
+      </div>
+    </div>`;
+
+  // NAV
+  if(scr==='nav'){
+    const tUsed=bucketParts('trailer').filter(isLogged).length;
+    const cUsed=bucketParts('cases').filter(isLogged).length;
+    const rep=loggedParts().length;
+    return`
+    <div class="hdr"><div class="hdr-row">
+      <div style="flex:1;min-width:0;">
+        <div class="hdr-title">GEO Restock</div>
+        <div class="hdr-sub" style="color:${t.color};">${t.icon} Team ${t.label}</div>
+      </div>
+      <button class="btn ghost sm" onclick="goHome()" style="flex-shrink:0;white-space:nowrap;">🏠 Home</button>
+      ${sdot()}
+    </div></div>
+    <div class="scroll"><div style="padding:16px 20px 4px;">
+      <button class="nav-card" onclick="goStock('trailer')" style="background:#152a45;border:1px solid #2a4a6c;">
+        <div style="font-size:28px;flex-shrink:0;">🚛</div>
+        <div><div class="nav-card-title">Trailer Stock</div><div class="nav-card-sub">${tUsed>0?tUsed+' items logged':'Nothing logged yet'}</div></div>
+      </button>
+      <button class="nav-card" onclick="goStock('cases')" style="background:#0f2a3a;border:1px solid #1a3a4a;">
+        <div style="font-size:28px;flex-shrink:0;">🧰</div>
+        <div><div class="nav-card-title">Cases Stock</div><div class="nav-card-sub">${cUsed>0?cUsed+' items logged':'Nothing logged yet'}</div></div>
+      </button>
+      <div class="search-wrap" style="padding:14px 0 4px;">
+        <div class="search-lbl">Search trailer parts</div>
+        <div class="search-input-wrap">
+          <input type="text" id="sq" value="${h(searchQ)}" placeholder="e.g. strap, PVC elbow, tape duct…" autocomplete="off" autocorrect="off" spellcheck="false" oninput="updateSearch(this.value)">
+          <button id="sqc" class="srch-clr" onclick="clearSearch()" style="display:${searchQ?'flex':'none'};">✕</button>
+        </div>
+      </div>
+      <div id="sr">${buildSearchResults(searchQ)}</div>
+      ${rep>0?`<button class="report-link" onclick="goReport()" style="margin-top:12px;">View Restock Report (${rep} item${rep!==1?'s':''}) →</button>`:''}
+      <button class="nav-card" onclick="goWarehouse()" style="background:#241a33;border:1px solid #3a2a4c;margin-top:8px;">
+        <div style="font-size:28px;flex-shrink:0;">🏢</div>
+        <div><div class="nav-card-title">Warehouse Items</div><div class="nav-card-sub">${warehouseParts().length} shop-only items · check shop minimums</div></div>
+      </button>
+      <button class="btn ghost" onclick="refreshCache()" style="margin-top:16px;">${refreshing?'Refreshing…':'↻ Refresh Data'}</button>
+      <div class="refresh-sub">Catalog updated ${lastRefreshTxt()}</div>
+      <div style="height:20px;"></div>
+    </div></div>
+    ${popup?renderPopup():''}`;
+  }
+
+  // CATEGORIES
+  if(scr==='cats'){
+    const label=stockSrc==='trailer'?'🚛 Trailer Stock':'🧰 Cases Stock';
+    return`
+      <div class="hdr"><div class="hdr-row">
+        <button class="back" onclick="goBack()">‹</button>
+        <div style="flex:1;min-width:0;"><div class="hdr-title">${label}</div><div class="hdr-sub" style="color:${t.color};">${t.icon} Team ${t.label}</div></div>
+        ${sdot()}
+      </div></div>
+      <div class="scroll"><div class="cat-grid">
+        ${cats(stockSrc).map(cat=>{
+          const tot=catParts(stockSrc,cat).length,used=catUsed(stockSrc,cat);
+          return`<button class="cat-tile${used>0?' has-use':''}" onclick="goCat('${h(cat).replace(/'/g,"\\'")}')">
+            <div class="ct-name">${h(cat)}</div><div class="ct-count">${tot} items</div>
+            ${used>0?`<div class="ct-used">${used} logged</div>`:''}</button>`;
+        }).join('')}
+      </div></div>`;
+  }
+
+  // ITEMS
+  if(scr==='items'){
+    const items=catParts(stockSrc,activeCat);
+    const srcLabel=stockSrc==='trailer'?'🚛 Trailer':'🧰 Cases';
+    return`
+      <div class="hdr"><div class="hdr-row">
+        <button class="back" onclick="goBack()">‹</button>
+        <div style="flex:1;min-width:0;"><div class="hdr-title">${h(activeCat)}</div><div class="hdr-sub">${srcLabel} · <span style="color:${t.color};">${t.icon} Team ${t.label}</span></div></div>
+        ${sdot()}
+      </div></div>
+      <div class="scroll" style="position:relative;">
+        ${items.map(p=>{
+          const logged=isLogged(p);
+          let right=logged?(p.isEach?`<span class="badge">-${allUsage[p.id]}</span>`:`<span class="badge flag">↻ ${h(p.refillTo)}</span>`):'';
+          const meta=p.isEach?`Max: ${h(p.trailerMax)}${p.trailerMin!=null?' · Min: '+h(p.trailerMin):''}`:`Refill to: ${h(p.refillTo)}`;
+          return`<button class="item-row${logged?' used':''}" onclick="openPopup(${p.id})">
+            <div style="flex:1;min-width:0;">
+              <div class="item-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h(p.name)}</div>
+              <div class="item-meta">${meta}</div></div>
+            <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;margin-left:8px;">${right}<span class="chevron">›</span></div>
+          </button>`;
+        }).join('')}
+        <div style="height:20px;"></div>
+      </div>${popup?renderPopup():''}`;
+  }
+
+  // REPORT
+  if(scr==='report'){
+    const up=loggedParts();
+    return`
+      <div class="hdr"><div class="hdr-row">
+        <button class="back" onclick="goBack()">‹</button>
+        <div style="flex:1;"><div class="hdr-title">Restock Report</div>
+        <div class="hdr-sub"><span style="color:${t.color};">${t.icon} Team ${t.label}</span>${up.length>0?' · '+up.length+' item'+(up.length!==1?'s':'')+' needed':''}</div></div>
+        ${sdot()}
+      </div></div>
+      <div class="scroll">
+        ${up.length===0?`<div style="padding:56px 24px;text-align:center;">
+            <div style="font-size:48px;margin-bottom:14px;">🎉</div>
+            <div style="font-size:17px;font-weight:700;color:#22c55e;margin-bottom:8px;">All caught up!</div>
+            <div style="font-size:13px;color:#4a5a7a;line-height:1.6;">Nothing needs restocking for Team ${h(t.label)} right now.</div></div>`:
+          loggedCats().map(cat=>`
+            <div class="sec-hdr">${h(cat)}</div>
+            ${up.filter(p=>p.cat===cat).map(p=>{
+              const target=p.isEach?('Qty '+allUsage[p.id]):('Refill '+h(p.refillTo));
+              return`<button class="rep-row" onclick="openRepDetail(${p.id})">
+                <div style="flex:1;min-width:0;">
+                  <div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h(p.name)}</div>
+                  <div style="font-size:11px;color:#4a5a7a;margin-top:2px;">${p.bucket==='trailer'?'🚛 Trailer':'🧰 Cases'} · Shop min: ${h(p.shopMin)}</div>
+                </div>
+                <div style="text-align:right;margin-left:8px;flex-shrink:0;display:flex;align-items:center;gap:6px;">
+                  <span style="font-size:15px;font-weight:700;color:${p.isEach?'#ef4444':'#38bdf8'};">${target}</span>
+                  <span class="chevron">›</span>
+                </div></button>`;
+            }).join('')}`).join('')}
+        <div style="height:20px;"></div>
+      </div>${repDetail?renderRepDetail():''}`;
+  }
+
+  // WAREHOUSE
+  if(scr==='warehouse'){
+    return`
+      <div class="hdr"><div class="hdr-row">
+        <button class="back" onclick="goBack()">‹</button>
+        <div style="flex:1;min-width:0;"><div class="hdr-title">🏢 Warehouse Items</div><div class="hdr-sub" style="color:${t.color};">${t.icon} Team ${t.label}</div></div>
+        <button class="icon-btn" onclick="toggleWhView()" title="Toggle view">${whView==='grid'?'☰':'▦'}</button>
+        ${sdot()}
+      </div></div>
+      <div class="scroll">
+        <div class="wh-count"><b>${warehouseParts().length}</b> non-trailer shop items</div>
+        <div class="search-wrap">
+          <div class="search-input-wrap">
+            <input type="text" id="whq" value="${h(whQ)}" placeholder="Search warehouse items…" autocomplete="off" autocorrect="off" spellcheck="false" oninput="updateWh(this.value)">
+            <button id="whc" class="srch-clr" onclick="clearWh()" style="display:${whQ?'flex':'none'};">✕</button>
+          </div>
+        </div>
+        <div id="whr">${buildWhResults(whQ)}</div>
+        <div style="height:20px;"></div>
+      </div>${whDetail?renderWhDetail():''}`;
+  }
+  return'';
+}
+
+// ── POPUP (usage) ─────────────────────────────────────────────────────────────
+function renderPopup(){
+  const p=popup;
+  return`<div class="overlay" onclick="if(event.target===this)closePopup()"><div class="popup">
+    ${imgBlock(p)}
+    <div class="pop-name">${h(p.name)}</div>
+    ${p.isEach
+      ?`<div class="pop-meta">Max: <span class="hl">${h(p.trailerMax)}</span>${p.trailerMin!=null?' · Min: <span class="hl">'+h(p.trailerMin)+'</span>':''}</div>
+        <div class="pop-lbl">Team usage:</div>
+        <div class="qty-row">
+          <button id="qm" class="qty-btn qty-minus${popQty===0?' off':''}" onclick="qAdj(-1)">−</button>
+          <input id="qv" class="qty-input" type="number" value="${popQty}" min="0" onchange="qInput()">
+          <button class="qty-btn qty-plus" onclick="qAdj(1)">+</button>
+        </div>`
+      :`<div class="pop-meta">Refill to: <span class="hl">${h(p.refillTo)}</span></div>
+        <div class="chk${popFlag?' on':''}" onclick="toggleFlag()">
+          <div class="box">${popFlag?'✓':''}</div>
+          <div class="lbl">Add to restock list<small>Refill to ${h(p.refillTo)}</small></div>
+        </div>`}
+    <button class="btn blue" onclick="closePopup()">Done</button>
+  </div></div>`;
+}
+
+// ── REPORT DETAIL (trailer/cases) ─────────────────────────────────────────────
+function renderRepDetail(){
+  const p=repDetail;
+  const target=p.isEach?('Qty '+allUsage[p.id]):('Refill to '+h(p.refillTo));
+  return`<div class="overlay" onclick="if(event.target===this){repDetail=null;render();}"><div class="popup">
+    ${imgBlock(p)}
+    <div class="pop-name">${h(p.name)}</div>
+    <div class="pop-meta">${p.bucket==='trailer'?'🚛 Trailer':'🧰 Cases'} · ${h(p.cat)}</div>
+    <div class="detail-stat tappable" onclick="editFromReport(${p.id})"><span class="k">Restock needed&nbsp;✎</span><span class="v">${target}</span></div>
+    <div class="detail-stat" style="margin-bottom:16px;"><span class="k">Shop minimum</span><span class="v">${h(p.shopMin)}</span></div>
+    <div class="chk${repRecv?' on':''}" onclick="toggleRecv()"><div class="box">${repRecv?'✓':''}</div><div class="lbl">Trailer stock received<small>Removes this item from the report</small></div></div>
+    <div class="chk${repBelow?' on':''}" onclick="toggleBelow()"><div class="box">${repBelow?'✓':''}</div><div class="lbl">Below shop minimum<small>Flag for the weekly shop reorder</small></div></div>
+    ${isTest()?'<div style="font-size:12px;color:#a78bfa;text-align:center;margin:2px 0 12px;">🧪 Test mode — below-min flags will not be saved</div>':''}
+    <button class="btn blue" onclick="commitRepDetail()">Done</button>
+  </div></div>`;
+}
+
+// ── WAREHOUSE DETAIL ──────────────────────────────────────────────────────────
+function renderWhDetail(){
+  const p=whDetail;
+  return`<div class="overlay" onclick="if(event.target===this){whDetail=null;render();}"><div class="popup">
+    ${imgBlock(p)}
+    <div class="pop-name">${h(p.name)}</div>
+    <div class="pop-meta">${p.vendor?h(p.vendor):'Warehouse item'}</div>
+    <div class="detail-stat" style="margin-bottom:16px;"><span class="k">Shop minimum</span><span class="v">${h(p.shopMin)}</span></div>
+    <div class="chk${whRestock?' on':''}" onclick="toggleWhRestock()"><div class="box">${whRestock?'✓':''}</div><div class="lbl">RESTOCK<small>Below minimum — add to weekly reorder</small></div></div>
+    ${isTest()?'<div style="font-size:12px;color:#a78bfa;text-align:center;margin:2px 0 12px;">🧪 Test mode — this will not be saved</div>':''}
+    <button class="btn blue" onclick="commitWh()">Done</button>
+  </div></div>`;
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+function boot(){
+  if(!localStorage.getItem('geo_lastRefresh'))localStorage.setItem('geo_lastRefresh',String(Date.now()));
+  fetch('GeothermParts.json').then(r=>r.json()).then(raw=>{
+    PARTS=raw.map(mapPart);PMAP={};PARTS.forEach(p=>PMAP[p.id]=p);
+    flushQueue();
+    if(team){scr='loading';render();startListeners();setTimeout(()=>{if(scr==='loading'){scr='nav';render();}},4000);}
+    else{scr='team';render();}
+    setTimeout(maybeAutoRefresh,2500);
+  }).catch(()=>{
+    $('app').innerHTML='<div style="height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;color:#ef4444;font-size:14px;padding:30px;">Could not load GeothermParts.json.<br>Make sure it sits next to index.html.</div>';
+  });
+}
+boot();
+
+// service worker (offline caching of app shell, JSON, and images)
+if('serviceWorker' in navigator && location.protocol==='https:'){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+</script>
+</body>
+</html>
