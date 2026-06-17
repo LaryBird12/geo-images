@@ -501,11 +501,9 @@ function buildHTML(){
     const cUsed=bucketParts('cases').filter(isLogged).length;
     const rep=loggedParts().length;
     return`
-    <div class="hdr"><div class="hdr-row">
-      <div style="flex:1;min-width:0;">
-        <div class="hdr-title">GEO Restock</div>
-        <div class="hdr-sub" style="color:${t.color};">${t.icon} Team ${t.label}</div>
-      </div>
+    <div class="hdr"><div class="hdr-row" style="position:relative;">
+      <div class="hdr-title" style="flex:1;min-width:0;">GEO Restock</div>
+      <div style="position:absolute;left:50%;transform:translateX(-50%);font-size:19px;font-weight:800;color:${t.color};white-space:nowrap;pointer-events:none;">${t.icon} ${t.label}</div>
       <button class="btn ghost sm" onclick="goHome()" style="flex-shrink:0;white-space:nowrap;">🏠 Home</button>
       ${sdot()}
     </div></div>
@@ -518,21 +516,21 @@ function buildHTML(){
         <div style="font-size:28px;flex-shrink:0;">🧰</div>
         <div><div class="nav-card-title">Cases Stock</div><div class="nav-card-sub">${cUsed>0?cUsed+' items logged':'Nothing logged yet'}</div></div>
       </button>
-      <button class="nav-card" onclick="goWarehouse()" style="background:#241a33;border:1px solid #3a2a4c;">
-        <div style="font-size:28px;flex-shrink:0;">🏢</div>
-        <div><div class="nav-card-title">Warehouse Stock</div><div class="nav-card-sub">${warehouseParts().length} shop-only items · check shop minimums</div></div>
-      </button>
-      ${rep>0?`<button class="nav-card" onclick="goReport()" style="background:#14301c;border:1px solid #22482e;">
-        <div style="font-size:28px;flex-shrink:0;">📋</div>
-        <div><div class="nav-card-title">Trailer Restock Report</div><div class="nav-card-sub">${rep} item${rep!==1?'s':''} to restock</div></div>
-      </button>`:''}
-      <div class="search-wrap" style="padding:0 0 4px;">
+      <div class="search-wrap" style="padding:0 0 12px;">
         <div class="search-input-wrap">
           <input type="text" id="sq" value="${h(searchQ)}" placeholder="Search Trailer Parts" autocomplete="off" autocorrect="off" spellcheck="false" oninput="updateSearch(this.value)">
           <button id="sqc" class="srch-clr" onclick="clearSearch()" style="display:${searchQ?'flex':'none'};">✕</button>
         </div>
       </div>
       <div id="sr">${buildSearchResults(searchQ)}</div>
+      ${rep>0?`<button class="nav-card" onclick="goReport()" style="background:#14301c;border:1px solid #22482e;">
+        <div style="font-size:28px;flex-shrink:0;">📋</div>
+        <div><div class="nav-card-title">Trailer Restock Report</div><div class="nav-card-sub">${rep} item${rep!==1?'s':''} to restock</div></div>
+      </button>`:''}
+      <button class="nav-card" onclick="goWarehouse()" style="background:#241a33;border:1px solid #3a2a4c;">
+        <div style="font-size:28px;flex-shrink:0;">🏢</div>
+        <div><div class="nav-card-title">Warehouse Stock</div><div class="nav-card-sub">${warehouseParts().length} shop-only items</div></div>
+      </button>
       ${isTest()?`<div style="text-align:center;margin-top:22px;"><button class="btn ghost" onclick="resetTestUsage()" style="width:auto;display:inline-block;padding:7px 16px;font-size:12px;opacity:.8;color:#a78bfa;border-color:#2e2350;">🧪 Reset Test items</button></div>`:''}
       <div style="height:20px;"></div>
     </div></div>
