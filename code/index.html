@@ -195,7 +195,7 @@ let popup=null,popQty=0,popFlag=false;          // usage popup
 let repDetail=null,repRecv=false,repBelow=false; // report detail
 let whDetail=null,whRestock=false;               // warehouse detail
 let _usageRef=null,_shopRef=null;
-let pendingWrites=0,refreshing=false,whView='list';
+let pendingWrites=0,refreshing=false,viewMode=(localStorage.getItem('geo_viewMode')||'list');
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 const $=id=>document.getElementById(id);
@@ -334,7 +334,7 @@ function buildWhResults(q){
   if(q.trim())res=res.filter(p=>matchSearch(p,q));
   res=res.slice().sort((a,b)=>a.name.localeCompare(b.name));
   if(!res.length)return`<div style="padding:16px;text-align:center;color:#4a5a7a;font-size:13px;">No warehouse items for "${h(q)}"</div>`;
-  if(whView==='grid'){
+  if(viewMode==='grid'){
     return`<div class="wh-grid">`+res.map(p=>{
       const flagged=!!shopFlags[p.id];
       const img=p.img?`<img src="${h(p.img)}" alt="" onerror="imgFail(this)">`:`<div class="img-ph">No image</div>`;
@@ -356,7 +356,10 @@ function buildWhResults(q){
     </button>`;
   }).join('');
 }
-function toggleWhView(){whView=whView==='grid'?'list':'grid';render();}
+const ICON_GRID='<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5"/></svg>';
+const ICON_LIST='<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="2.4" cy="3" r="1.2"/><rect x="5" y="2.2" width="9.5" height="1.6" rx=".8"/><circle cx="2.4" cy="8" r="1.2"/><rect x="5" y="7.2" width="9.5" height="1.6" rx=".8"/><circle cx="2.4" cy="13" r="1.2"/><rect x="5" y="12.2" width="9.5" height="1.6" rx=".8"/></svg>';
+function viewIcon(){return viewMode==='grid'?ICON_LIST:ICON_GRID;}
+function toggleView(){viewMode=viewMode==='grid'?'list':'grid';try{localStorage.setItem('geo_viewMode',viewMode);}catch(e){}render();}
 function updateWh(q){whQ=q;const el=$('whr');if(el)el.innerHTML=buildWhResults(q);const c=$('whc');if(c)c.style.display=q?'flex':'none';}
 function clearWh(){whQ='';const i=$('whq');if(i){i.value='';i.focus();}updateWh('');}
 
@@ -470,19 +473,18 @@ function buildHTML(){
         <div><div class="nav-card-title">Cases Stock</div><div class="nav-card-sub">${cUsed>0?cUsed+' items logged':'Nothing logged yet'}</div></div>
       </button>
       <div class="search-wrap" style="padding:14px 0 4px;">
-        <div class="search-lbl">Search trailer parts</div>
         <div class="search-input-wrap">
-          <input type="text" id="sq" value="${h(searchQ)}" placeholder="e.g. strap, PVC elbow, tape duct…" autocomplete="off" autocorrect="off" spellcheck="false" oninput="updateSearch(this.value)">
+          <input type="text" id="sq" value="${h(searchQ)}" placeholder="Search trailer parts" autocomplete="off" autocorrect="off" spellcheck="false" oninput="updateSearch(this.value)">
           <button id="sqc" class="srch-clr" onclick="clearSearch()" style="display:${searchQ?'flex':'none'};">✕</button>
         </div>
       </div>
       <div id="sr">${buildSearchResults(searchQ)}</div>
-      ${rep>0?`<button class="report-link" onclick="goReport()" style="margin-top:12px;">View Restock Report (${rep} item${rep!==1?'s':''}) →</button>`:''}
+      ${rep>0?`<button class="report-link" onclick="goReport()" style="margin-top:12px;">Trailer Restock Report (${rep} item${rep!==1?'s':''}) →</button>`:''}
       <button class="nav-card" onclick="goWarehouse()" style="background:#241a33;border:1px solid #3a2a4c;margin-top:8px;">
         <div style="font-size:28px;flex-shrink:0;">🏢</div>
         <div><div class="nav-card-title">Warehouse Items</div><div class="nav-card-sub">${warehouseParts().length} shop-only items · check shop minimums</div></div>
       </button>
-      <button class="btn ghost" onclick="refreshCache()" style="margin-top:16px;">${refreshing?'Refreshing…':'↻ Refresh Data'}</button>
+      <div style="text-align:center;margin-top:18px;"><button class="btn ghost" onclick="refreshCache()" style="width:auto;display:inline-block;padding:8px 18px;font-size:13px;opacity:.72;">${refreshing?'Refreshing…':'↻ Refresh Data'}</button></div>
       <div class="refresh-sub">Catalog updated ${lastRefreshTxt()}</div>
       <div style="height:20px;"></div>
     </div></div>
@@ -516,10 +518,22 @@ function buildHTML(){
       <div class="hdr"><div class="hdr-row">
         <button class="back" onclick="goBack()">‹</button>
         <div style="flex:1;min-width:0;"><div class="hdr-title">${h(activeCat)}</div><div class="hdr-sub">${srcLabel} · <span style="color:${t.color};">${t.icon} Team ${t.label}</span></div></div>
+        <button class="icon-btn" onclick="toggleView()" title="Toggle view">${viewIcon()}</button>
         ${sdot()}
       </div></div>
       <div class="scroll" style="position:relative;">
-        ${items.map(p=>{
+        ${viewMode==='grid'
+          ? `<div class="wh-grid">`+items.map(p=>{
+              const logged=isLogged(p);
+              const img=p.img?`<img src="${h(p.img)}" alt="" onerror="imgFail(this)">`:`<div class="img-ph">No image</div>`;
+              const badge=logged?(p.isEach?`<span class="wh-tile-badge">-${allUsage[p.id]}</span>`:`<span class="wh-tile-badge">↻</span>`):'';
+              return`<button class="wh-tile${logged?' flagged':''}" onclick="openPopup(${p.id})">
+                <div class="wh-thumb">${img}</div>
+                <div class="wh-tile-name">${h(p.name)}</div>
+                ${badge}
+              </button>`;
+            }).join('')+`</div>`
+          : items.map(p=>{
           const logged=isLogged(p);
           let right=logged?(p.isEach?`<span class="badge">-${allUsage[p.id]}</span>`:`<span class="badge flag">↻ ${h(p.refillTo)}</span>`):'';
           const meta=p.isEach?`Max: ${h(p.trailerMax)}${p.trailerMin!=null?' · Min: '+h(p.trailerMin):''}`:`Refill to: ${h(p.refillTo)}`;
@@ -564,7 +578,7 @@ function buildHTML(){
                 </div></button>`;
             }).join('')}`).join('')}
         <div style="height:20px;"></div>
-      </div>${repDetail?renderRepDetail():''}`;
+      </div>${repDetail?renderRepDetail():''}${popup?renderPopup():''}`;
   }
 
   // WAREHOUSE
@@ -573,7 +587,7 @@ function buildHTML(){
       <div class="hdr"><div class="hdr-row">
         <button class="back" onclick="goBack()">‹</button>
         <div style="flex:1;min-width:0;"><div class="hdr-title">🏢 Warehouse Items</div><div class="hdr-sub" style="color:${t.color};">${t.icon} Team ${t.label}</div></div>
-        <button class="icon-btn" onclick="toggleWhView()" title="Toggle view">${whView==='grid'?'☰':'▦'}</button>
+        <button class="icon-btn" onclick="toggleView()" title="Toggle view">${viewIcon()}</button>
         ${sdot()}
       </div></div>
       <div class="scroll">
@@ -605,7 +619,7 @@ function renderPopup(){
           <input id="qv" class="qty-input" type="number" value="${popQty}" min="0" onchange="qInput()">
           <button class="qty-btn qty-plus" onclick="qAdj(1)">+</button>
         </div>`
-      :`<div class="pop-meta">Refill to: <span class="hl">${h(p.refillTo)}</span></div>
+      :`<div class="pop-meta">${(p.trailerMin!=null&&(''+p.trailerMin).trim()!=='')?'Restock at: <span class="hl">'+h(p.trailerMin)+'</span> → ':''}Refill to: <span class="hl">${h(p.refillTo)}</span></div>
         <div class="chk${popFlag?' on':''}" onclick="toggleFlag()">
           <div class="box">${popFlag?'✓':''}</div>
           <div class="lbl">Add to restock list<small>Refill to ${h(p.refillTo)}</small></div>
