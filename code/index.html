@@ -126,6 +126,12 @@ input{width:100%;padding:13px 14px;background:#1a2540;border:1px solid #2a3a5c;b
 .detail-stat.tappable{cursor:pointer;border-color:#2a4a6c}
 .detail-stat.tappable .k{color:#38bdf8}
 .team-logo{max-width:200px;max-height:120px;width:auto;height:auto;margin-bottom:18px;object-fit:contain}
+@keyframes cardpoof{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.5)}}
+.puffing{animation:cardpoof .4s ease-in forwards;pointer-events:none}
+@keyframes smokeP{0%{opacity:0;transform:translate(-50%,-50%) translate(0,0) scale(.3)}15%{opacity:.85}100%{opacity:0;transform:translate(-50%,-50%) translate(var(--dx),var(--dy)) scale(var(--s))}}
+.smoke-p{position:fixed;width:60px;height:60px;border-radius:50%;background:radial-gradient(circle,rgba(205,214,230,.72),rgba(205,214,230,0) 70%);filter:blur(4px);pointer-events:none;z-index:9999;animation:smokeP .62s ease-out forwards}
+@keyframes rockOn{0%{opacity:0;transform:translate(-50%,-50%) scale(.2)}25%{opacity:1;transform:translate(-50%,-50%) scale(1.18)}45%{transform:translate(-50%,-50%) scale(1)}78%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(1.12)}}
+.poof-emoji{position:fixed;z-index:10000;font-size:74px;line-height:1;pointer-events:none;animation:rockOn .72s ease-out forwards}
 </style>
 </head>
 <body>
@@ -416,13 +422,42 @@ function openRepDetail(id){repDetail=PMAP[id];repRecv=false;repBelow=!!shopFlags
 function editFromReport(id){repDetail=null;openPopup(id);}
 function toggleRecv(){repRecv=!repRecv;render();}
 function toggleBelow(){repBelow=!repBelow;render();}
+function puffSmoke(card){
+  const r=card.getBoundingClientRect();
+  const cx=r.left+r.width/2, cy=r.top+r.height/2, N=24;
+  for(let i=0;i<N;i++){
+    const el=document.createElement('div');
+    el.className='smoke-p';
+    const ang=(Math.PI*2*i/N)+(Math.random()*0.6-0.3);
+    const dist=90+Math.random()*140;
+    const dx=Math.cos(ang)*dist;
+    const dy=Math.sin(ang)*dist-(50+Math.random()*70);
+    el.style.left=cx+'px'; el.style.top=cy+'px';
+    el.style.setProperty('--dx',dx.toFixed(1)+'px');
+    el.style.setProperty('--dy',dy.toFixed(1)+'px');
+    el.style.setProperty('--s',(1.8+Math.random()*1.8).toFixed(2));
+    el.style.animationDelay=(Math.random()*0.08).toFixed(3)+'s';
+    document.body.appendChild(el);
+    setTimeout(()=>el.remove(),760);
+  }
+  const em=document.createElement('div');
+  em.className='poof-emoji'; em.textContent='🤘';
+  em.style.left=cx+'px'; em.style.top=cy+'px';
+  document.body.appendChild(em);
+  setTimeout(()=>em.remove(),800);
+}
 function commitRepDetail(){
   const p=repDetail;if(!p)return;
-  if(repRecv)dbWrite('geo-restock/teams/'+team+'/usage/'+p.id,null);   // clear demand
-  if(!isTest())dbWrite('geo-restock/shopReorder/'+p.id, repBelow?shopRecord(p):null); // set/clear below-min flag
-  repDetail=null;
-  toast(isTest()?'Test — not saved to reorder':(repRecv?'Restocked ✓':'Saved'));
-  render();
+  const finish=()=>{
+    if(repRecv)dbWrite('geo-restock/teams/'+team+'/usage/'+p.id,null);   // clear demand
+    if(!isTest())dbWrite('geo-restock/shopReorder/'+p.id, repBelow?shopRecord(p):null); // set/clear below-min flag
+    repDetail=null;
+    toast(isTest()?'Test — not saved to reorder':(repRecv?'Restocked ✓':'Saved'));
+    render();
+  };
+  const card=repRecv?document.querySelector('.overlay .popup'):null;
+  if(card){ puffSmoke(card); card.classList.add('puffing'); setTimeout(finish,420); }
+  else finish();
 }
 
 // warehouse detail — single RESTOCK checkbox
@@ -485,16 +520,19 @@ function buildHTML(){
       </button>
       <button class="nav-card" onclick="goWarehouse()" style="background:#241a33;border:1px solid #3a2a4c;">
         <div style="font-size:28px;flex-shrink:0;">🏢</div>
-        <div><div class="nav-card-title">Warehouse Items</div><div class="nav-card-sub">${warehouseParts().length} shop-only items · check shop minimums</div></div>
+        <div><div class="nav-card-title">Warehouse Stock</div><div class="nav-card-sub">${warehouseParts().length} shop-only items · check shop minimums</div></div>
       </button>
+      ${rep>0?`<button class="nav-card" onclick="goReport()" style="background:#14301c;border:1px solid #22482e;">
+        <div style="font-size:28px;flex-shrink:0;">📋</div>
+        <div><div class="nav-card-title">Trailer Restock Report</div><div class="nav-card-sub">${rep} item${rep!==1?'s':''} to restock</div></div>
+      </button>`:''}
       <div class="search-wrap" style="padding:0 0 4px;">
         <div class="search-input-wrap">
-          <input type="text" id="sq" value="${h(searchQ)}" placeholder="Search trailer parts" autocomplete="off" autocorrect="off" spellcheck="false" oninput="updateSearch(this.value)">
+          <input type="text" id="sq" value="${h(searchQ)}" placeholder="Search Trailer Parts" autocomplete="off" autocorrect="off" spellcheck="false" oninput="updateSearch(this.value)">
           <button id="sqc" class="srch-clr" onclick="clearSearch()" style="display:${searchQ?'flex':'none'};">✕</button>
         </div>
       </div>
       <div id="sr">${buildSearchResults(searchQ)}</div>
-      ${rep>0?`<button class="report-link" onclick="goReport()" style="margin-top:12px;">Trailer Restock Report (${rep} item${rep!==1?'s':''}) →</button>`:''}
       ${isTest()?`<div style="text-align:center;margin-top:22px;"><button class="btn ghost" onclick="resetTestUsage()" style="width:auto;display:inline-block;padding:7px 16px;font-size:12px;opacity:.8;color:#a78bfa;border-color:#2e2350;">🧪 Reset Test items</button></div>`:''}
       <div style="height:20px;"></div>
     </div></div>
@@ -596,7 +634,7 @@ function buildHTML(){
     return`
       <div class="hdr"><div class="hdr-row">
         <button class="back" onclick="goBack()">‹</button>
-        <div style="flex:1;min-width:0;"><div class="hdr-title">🏢 Warehouse Items</div><div class="hdr-sub" style="color:${t.color};">${t.icon} Team ${t.label}</div></div>
+        <div style="flex:1;min-width:0;"><div class="hdr-title">🏢 Warehouse Stock</div><div class="hdr-sub" style="color:${t.color};">${t.icon} Team ${t.label}</div></div>
         <button class="icon-btn" onclick="toggleView()" title="Toggle view">${viewIcon()}</button>
         ${sdot()}
       </div></div>
