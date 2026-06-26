@@ -393,6 +393,18 @@ function resetTestUsage(){
   toast('Test items reset');
   render();
 }
+function goShopReorder(){if(!isTest())return;scr='shopreorder';render();}
+function clearShopReorder(){
+  if(!isTest())return; // hard guard: admin maintenance, Test team only
+  const n=Object.keys(shopFlags||{}).length;
+  if(n===0){toast('Weekly reorder list is already empty');return;}
+  if(!confirm('This permanently clears all '+n+' item'+(n!==1?'s':'')+' from the weekly reorder list.\n\nContinue?'))return;
+  if(!confirm('Are you sure? This cannot be undone.'))return;
+  dbWrite('geo-restock/shopReorder', null);
+  shopFlags={};
+  toast('Weekly reorder list cleared');
+  scr='nav';render();
+}
 function goStock(src){stockSrc=src;scr='cats';render();}
 function goCat(cat){activeCat=cat;scr='items';render();}
 function goReport(){scr='report';render();}
@@ -400,7 +412,7 @@ function goWarehouse(){whQ='';scr='warehouse';render();}
 function goBack(){
   if(scr==='items'){scr='cats';activeCat=null;}
   else if(scr==='cats'){scr='nav';stockSrc=null;}
-  else if(scr==='report'||scr==='warehouse'){scr='nav';}
+  else if(scr==='report'||scr==='warehouse'||scr==='shopreorder'){scr='nav';}
   render();
 }
 
@@ -500,6 +512,7 @@ function buildHTML(){
     const tUsed=bucketParts('trailer').filter(isLogged).length;
     const cUsed=bucketParts('cases').filter(isLogged).length;
     const rep=loggedParts().length;
+    const shopN=Object.keys(shopFlags||{}).length;
     return`
     <div class="hdr"><div class="hdr-row" style="position:relative;">
       <div class="hdr-title" style="flex:1;min-width:0;">GEO Restock</div>
@@ -531,6 +544,10 @@ function buildHTML(){
         <div style="font-size:28px;flex-shrink:0;">🏢</div>
         <div><div class="nav-card-title">Warehouse Stock</div><div class="nav-card-sub">${warehouseParts().length} shop-only items</div></div>
       </button>
+      ${isTest()?`<button class="nav-card" onclick="goShopReorder()" style="background:#2a1a33;border:1px solid #4a2a5c;">
+        <div style="font-size:28px;flex-shrink:0;">🧾</div>
+        <div><div class="nav-card-title">Weekly Reorder List</div><div class="nav-card-sub">${shopN>0?shopN+' item'+(shopN!==1?'s':'')+' flagged shop-wide':'Nothing flagged yet'}</div></div>
+      </button>`:''}
       ${isTest()?`<div style="text-align:center;margin-top:22px;"><button class="btn ghost" onclick="resetTestUsage()" style="width:auto;display:inline-block;padding:7px 16px;font-size:12px;opacity:.8;color:#a78bfa;border-color:#2e2350;">🧪 Reset Test items</button></div>`:''}
       <div style="height:20px;"></div>
     </div></div>
@@ -625,6 +642,35 @@ function buildHTML(){
             }).join('')}`).join('')}
         <div style="height:20px;"></div>
       </div>${repDetail?renderRepDetail():''}${popup?renderPopup():''}`;
+  }
+
+  // WEEKLY REORDER LIST (Test-only admin)
+  if(scr==='shopreorder'){
+    const entries=Object.keys(shopFlags||{}).map(id=>Object.assign({id:id},shopFlags[id]||{}));
+    return`
+      <div class="hdr"><div class="hdr-row">
+        <button class="back" onclick="goBack()">‹</button>
+        <div style="flex:1;"><div class="hdr-title">Weekly Reorder List</div>
+        <div class="hdr-sub"><span style="color:${t.color};">${t.icon} ${t.label}</span>${entries.length>0?' · '+entries.length+' item'+(entries.length!==1?'s':''):''}</div></div>
+        ${sdot()}
+      </div></div>
+      <div class="scroll"><div style="padding:14px 18px;">
+        <div style="font-size:11px;color:#4a5a7a;line-height:1.5;margin-bottom:12px;">Shop-wide reorder flags, raised by any team when an item drops below its shop minimum. Clear this after the weekly order is placed.</div>
+        ${entries.length===0?`<div style="padding:48px 24px;text-align:center;">
+            <div style="font-size:44px;margin-bottom:12px;">✅</div>
+            <div style="font-size:16px;font-weight:700;color:#22c55e;margin-bottom:6px;">List is empty</div>
+            <div style="font-size:13px;color:#4a5a7a;">Nothing is flagged for reorder right now.</div></div>`:
+          entries.map(e=>`<div class="rep-row" style="cursor:default;">
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h(e.name||('Part '+e.id))}</div>
+                <div style="font-size:11px;color:#4a5a7a;margin-top:2px;">${e.vendor?h(String(e.vendor))+' · ':''}Shop min: ${e.shopMin==null?'—':h(String(e.shopMin))}${e.team?' · by '+h(String(e.team)):''}</div>
+              </div>
+            </div>`).join('')}
+        ${entries.length>0?`<div style="text-align:center;margin-top:24px;">
+            <button class="btn" onclick="clearShopReorder()" style="width:auto;display:inline-block;padding:10px 20px;font-size:13px;font-weight:700;background:#3a1520;border:1px solid #6e2233;color:#fca5a5;">🗑 Clear Weekly Reorder List</button>
+          </div>`:''}
+        <div style="height:20px;"></div>
+      </div></div>`;
   }
 
   // WAREHOUSE
