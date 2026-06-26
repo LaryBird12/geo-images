@@ -93,6 +93,9 @@ input{width:100%;padding:13px 14px;background:#1a2540;border:1px solid #2a3a5c;b
 .chk.on .box{background:#22c55e;border-color:#22c55e}
 .chk .lbl{font-size:15px;font-weight:600;color:#e2e8f0}
 .chk .lbl small{display:block;font-size:12px;font-weight:500;color:#7a8fb5;margin-top:2px}
+.chk.big{flex-direction:column;align-items:stretch;gap:12px;padding:16px 16px 18px}
+.chk.big .chk-top{display:flex;align-items:center;gap:12px;width:100%}
+.chk.big .chk-qty{font-size:27px;font-weight:800;color:#e2e8f0;line-height:1.05;text-align:left}
 .detail-stat{background:#0f172a;border:1px solid #2a3a5c;border-radius:10px;padding:12px 14px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
 .detail-stat .k{font-size:12px;color:#7a8fb5;font-weight:600}
 .detail-stat .v{font-size:18px;color:#e2e8f0;font-weight:700}
@@ -728,10 +731,14 @@ function renderRepDetail(){
     ${imgBlock(p)}
     <div class="pop-name">${h(p.name)}</div>
     <div class="pop-meta">${p.bucket==='trailer'?'🚛 Trailer':'🧰 Cases'} · ${h(p.cat)}</div>
-    <div class="detail-stat tappable" onclick="editFromReport(${p.id})"><span class="k">Restock needed&nbsp;✎</span><span class="v">${target}</span></div>
-    <div class="detail-stat" style="margin-bottom:16px;"><span class="k">Shop minimum</span><span class="v">${h(p.shopMin)}</span></div>
-    <div class="chk${repRecv?' on':''}" onclick="toggleRecv()"><div class="box">${repRecv?'✓':''}</div><div class="lbl">Trailer stock received<small>Removes this item from the report</small></div></div>
-    <div class="chk${repBelow?' on':''}" onclick="toggleBelow()"><div class="box">${repBelow?'✓':''}</div><div class="lbl">Below shop minimum<small>Flag for the weekly shop reorder</small></div></div>
+    <div class="chk big${repRecv?' on':''}" onclick="toggleRecv()">
+      <div class="chk-top"><div class="box">${repRecv?'✓':''}</div><div class="lbl">Trailer Stock Received<small>Removes this item from the report</small></div></div>
+      <div class="chk-qty">${target}</div>
+    </div>
+    <div class="chk big${repBelow?' on':''}" onclick="toggleBelow()">
+      <div class="chk-top"><div class="box">${repBelow?'✓':''}</div><div class="lbl">Below Shop Minimum<small>Flag for the weekly shop reorder</small></div></div>
+      <div class="chk-qty">${p.shopMin==null||p.shopMin===''?'—':h(p.shopMin)}</div>
+    </div>
     ${isTest()?'<div style="font-size:12px;color:#a78bfa;text-align:center;margin:2px 0 12px;">🧪 Test mode — below-min flags will not be saved</div>':''}
     <button class="btn blue" onclick="commitRepDetail()">Done</button>
   </div></div>`;
