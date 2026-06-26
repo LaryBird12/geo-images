@@ -485,7 +485,34 @@ function commitWh(){
   toast(isTest()?'Test — not saved':(whRestock?'Flagged for reorder':'Cleared'));
   render();
 }
-function shopRecord(p){return{flagged:true,team:team,ts:Date.now(),name:p.name,shopMin:(p.shopMin==null?null:p.shopMin),vendor:p.vendor||null,vendorPart:(p.vendorPart==null?null:p.vendorPart)};}
+function shopRecord(p){return{flagged:true,team:team,ts:Date.now(),name:p.name,shopMin:(p.shopMin==null?null:p.shopMin),shopOrderQty:(p.shopOrderQty==null?null:p.shopOrderQty),vendor:p.vendor||null,vendorPart:(p.vendorPart==null?null:p.vendorPart)};}
+
+// ── REORDER EXPORT / PRINT ────────────────────────────────────────────────────
+function exportReorderCSV(){
+  const entries=Object.keys(shopFlags||{}).map(id=>Object.assign({id:id},shopFlags[id]||{}));
+  if(!entries.length){toast('Nothing to export');return;}
+  entries.sort((a,b)=>{const va=(a.vendor||'').toLowerCase(),vb=(b.vendor||'').toLowerCase();if(va<vb)return -1;if(va>vb)return 1;return 0;});
+  const rows=[['Master Record ID','Order QTY']];
+  entries.forEach(e=>{const part=PMAP[e.id];const oq=part?part.shopOrderQty:'';rows.push([e.id,oq!=null?oq:'']);});
+  const csv=rows.map(r=>r.map(c=>'"'+String(c==null?'':c).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;
+  const d=new Date();
+  a.download='GEO_Reorder_'+d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+'.csv';
+  a.click();URL.revokeObjectURL(url);toast('CSV exported ✓');
+}
+function printReorderList(){
+  const entries=Object.keys(shopFlags||{}).map(id=>Object.assign({id:id},shopFlags[id]||{}));
+  if(!entries.length){toast('Nothing to print');return;}
+  entries.sort((a,b)=>{const va=(a.vendor||'').toLowerCase(),vb=(b.vendor||'').toLowerCase();if(va<vb)return -1;if(va>vb)return 1;const na=(a.name||'').toLowerCase(),nb=(b.name||'').toLowerCase();return na<nb?-1:na>nb?1:0;});
+  const byVendor={};entries.forEach(e=>{const v=e.vendor||'Unknown Vendor';if(!byVendor[v])byVendor[v]=[];byVendor[v].push(e);});
+  const vendorKeys=Object.keys(byVendor).sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()));
+  const d=new Date();const ds=d.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+  const rows=vendorKeys.map(v=>`<div class="vg"><div class="vn">${v}</div><table><thead><tr><th>Part</th><th style="text-align:center;">Shop Min</th><th style="text-align:right;">Order QTY</th></tr></thead><tbody>${byVendor[v].map(e=>{const part=PMAP[e.id];const oq=part?part.shopOrderQty:null;return`<tr><td>${e.name||('Part '+e.id)}</td><td style="text-align:center;">${e.shopMin==null?'—':e.shopMin}</td><td style="text-align:right;font-weight:700;">${oq!=null?oq:'—'}</td></tr>`;}).join('')}</tbody></table></div>`).join('');
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>GEO Weekly Reorder — ${ds}</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:-apple-system,Arial,sans-serif;font-size:12px;color:#000;padding:24px 28px;}h1{font-size:18px;font-weight:800;margin-bottom:3px;}.sub{font-size:11px;color:#555;margin-bottom:20px;}.vg{margin-bottom:16px;break-inside:avoid;}.vn{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;border-bottom:2px solid #000;padding-bottom:3px;margin-bottom:5px;}table{width:100%;border-collapse:collapse;}th{text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#555;padding:3px 6px;border-bottom:1px solid #ccc;}td{padding:4px 6px;border-bottom:1px solid #eee;font-size:12px;}@media print{body{padding:12px;}}</style></head><body><h1>GEO Weekly Reorder List</h1><div class="sub">Generated ${ds} · ${entries.length} item${entries.length!==1?'s':''}</div>${rows}</body></html>`;
+  const w=window.open('','_blank','width=820,height=900');w.document.write(html);w.document.close();w.focus();setTimeout(()=>w.print(),400);
+}
 
 // ── RENDER ────────────────────────────────────────────────────────────────────
 function render(){const _t=ti();const _r=document.documentElement.style;_r.setProperty('--team-hdr-bg',_t.bg);_r.setProperty('--team-hdr-border',_t.border);$('app').innerHTML=buildHTML();updSync();}
@@ -650,6 +677,17 @@ function buildHTML(){
   // WEEKLY REORDER LIST (Test-only admin)
   if(scr==='shopreorder'){
     const entries=Object.keys(shopFlags||{}).map(id=>Object.assign({id:id},shopFlags[id]||{}));
+    // Sort by vendor alpha, then part name alpha within vendor
+    entries.sort((a,b)=>{
+      const va=(a.vendor||'').toLowerCase(),vb=(b.vendor||'').toLowerCase();
+      if(va<vb)return -1;if(va>vb)return 1;
+      const na=(a.name||'').toLowerCase(),nb=(b.name||'').toLowerCase();
+      return na<nb?-1:na>nb?1:0;
+    });
+    // Group by vendor
+    const byVendor={};
+    entries.forEach(e=>{const v=e.vendor||'Unknown Vendor';if(!byVendor[v])byVendor[v]=[];byVendor[v].push(e);});
+    const vendorKeys=Object.keys(byVendor).sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()));
     return`
       <div class="hdr"><div class="hdr-row">
         <button class="back" onclick="goBack()">‹</button>
@@ -663,15 +701,30 @@ function buildHTML(){
             <div style="font-size:44px;margin-bottom:12px;">✅</div>
             <div style="font-size:16px;font-weight:700;color:#22c55e;margin-bottom:6px;">List is empty</div>
             <div style="font-size:13px;color:#4a5a7a;">Nothing is flagged for reorder right now.</div></div>`:
-          entries.map(e=>`<div class="rep-row" style="cursor:default;">
-              <div style="flex:1;min-width:0;">
-                <div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h(e.name||('Part '+e.id))}</div>
-                <div style="font-size:11px;color:#4a5a7a;margin-top:2px;">${e.vendor?h(String(e.vendor))+' · ':''}Shop min: ${e.shopMin==null?'—':h(String(e.shopMin))}${e.team?' · by '+h(String(e.team)):''}</div>
-              </div>
+          `${vendorKeys.map(v=>`
+            <div style="margin-bottom:18px;">
+              <div style="font-size:12px;font-weight:800;color:#e2e8f0;text-transform:uppercase;letter-spacing:.06em;padding:5px 0;border-bottom:1px solid #2a3a5c;margin-bottom:4px;">${h(v)}</div>
+              ${byVendor[v].map(e=>{
+                const part=PMAP[e.id];
+                const orderQty=part?part.shopOrderQty:null;
+                return`<div class="rep-row" style="cursor:default;padding-left:14px;">
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h(e.name||('Part '+e.id))}</div>
+                    <div style="font-size:11px;color:#4a5a7a;margin-top:2px;">Shop min: ${e.shopMin==null?'—':h(String(e.shopMin))}</div>
+                  </div>
+                  <div style="text-align:right;flex-shrink:0;margin-left:8px;">
+                    <div style="font-size:14px;font-weight:700;color:#38bdf8;">Order: ${orderQty!=null?h(String(orderQty)):'—'}</div>
+                  </div>
+                </div>`;
+              }).join('')}
             </div>`).join('')}
-        ${entries.length>0?`<div style="text-align:center;margin-top:24px;">
+          <div style="display:flex;gap:10px;margin-top:8px;">
+            <button class="btn green" onclick="exportReorderCSV()" style="flex:1;">📥 Export CSV</button>
+            <button class="btn ghost" onclick="printReorderList()" style="flex:1;">🖨 Print</button>
+          </div>
+          <div style="text-align:center;margin-top:14px;">
             <button class="btn" onclick="clearShopReorder()" style="width:auto;display:inline-block;padding:10px 20px;font-size:13px;font-weight:700;background:#3a1520;border:1px solid #6e2233;color:#fca5a5;">🗑 Clear Weekly Reorder List</button>
-          </div>`:''}
+          </div>`}
         <div style="height:20px;"></div>
       </div></div>`;
   }
