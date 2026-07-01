@@ -162,7 +162,6 @@ const TEAMS={
   gold:    {label:'Gold',    color:'#f59e0b',bg:'#271c00',border:'#4a3500',icon:'🏅'},
   cobalt:  {label:'Cobalt',  color:'#60a5fa',bg:'#001440',border:'#0c2a6e',icon:'🔷'},
   titanium:{label:'Titanium',color:'#94a3b8',bg:'#141820',border:'#2c3348',icon:'⚙️'},
-  krypton: {label:'Krypton', color:'#4ade80',bg:'#001a0a',border:'#0a3020',icon:'⚡'},
   test:    {label:'Test',    color:'#a78bfa',bg:'#1a1530',border:'#2e2350',icon:'🧪'},
 };
 const isTest=()=>team==='test';
@@ -281,10 +280,27 @@ function showSyncInfo(){
     ${!navigator.onLine?'<div class="syncoff">⚠ Offline — changes will sync on reconnect</div>':''}
     <div class="syncdiv"></div>
     <div class="syncrow2"><span>🗂 Catalog</span><b>updated ${h(lastRefreshTxt())}</b></div>
-    <button class="btn ghost sm" style="width:100%;margin-top:14px;" onclick="hideSyncInfo();refreshCache();">↻ Refresh Data</button>
+    <button class="btn ghost sm" style="width:100%;margin-top:14px;color:#fbbf24;border-color:#6b4416;" onclick="askAdmin()">⛔ Admin Only</button>
+    <button class="btn ghost sm" style="width:100%;margin-top:8px;" onclick="hideSyncInfo();refreshCache();">↻ Refresh Data</button>
     <button class="btn ghost sm" style="width:100%;margin-top:8px;" onclick="hideSyncInfo()">Close</button>
   </div>`;
   $('syncinfo').style.display='flex';
+}
+function askAdmin(){
+  $('syncinfo').innerHTML=`<div class="syncbox" onclick="event.stopPropagation()">
+    <div style="font-weight:800;font-size:16px;color:#fbbf24;margin-bottom:4px;">⛔ Admin Only</div>
+    <div class="syncsub" style="margin-bottom:12px;">Enter password to continue.</div>
+    <input type="password" id="admpw" placeholder="Password" autocomplete="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key==='Enter')submitAdminPw()" style="width:100%;box-sizing:border-box;background:#0d1526;border:1px solid #24314d;border-radius:10px;color:#e2e8f0;font-size:15px;padding:11px;margin-bottom:12px;">
+    <button class="btn blue" style="width:100%;" onclick="submitAdminPw()">Enter</button>
+    <button class="btn ghost sm" style="width:100%;margin-top:8px;" onclick="hideSyncInfo()">Cancel</button>
+  </div>`;
+  $('syncinfo').style.display='flex';
+  setTimeout(()=>{const i=$('admpw');if(i)i.focus();},60);
+}
+function submitAdminPw(){
+  const i=$('admpw');const v=i?i.value:'';
+  if(v==='geotherm'){hideSyncInfo();goAdmin();}
+  else{toast('Wrong password');if(i){i.value='';i.focus();}}
 }
 function hideSyncInfo(){const e=$('syncinfo');if(e)e.style.display='none';}
 
@@ -318,11 +334,11 @@ function matchSearch(p,q){
   const hay=(p.name+' '+p.cat).toLowerCase();
   return words.every(w=>hay.includes(w));
 }
-function buildSearchResults(q){          // nav search = TRAILER parts only (on-trailer)
+function buildSearchResults(q){          // nav search: trailer parts normally; ALL parts in grab mode
   if(!q.trim())return'';
-  const res=PARTS.filter(p=>p.onTrailer&&matchSearch(p,q)).slice(0,15);
-  if(!res.length)return`<div style="padding:16px;text-align:center;color:#4a5a7a;font-size:13px;">No trailer parts for "${h(q)}"</div>`;
-  return res.map(p=>rowHTML(p,"openPopup")).join('');
+  const res=(grab?PARTS:PARTS.filter(p=>p.onTrailer)).filter(p=>matchSearch(p,q)).slice(0,15);
+  if(!res.length)return`<div style="padding:16px;text-align:center;color:#4a5a7a;font-size:13px;">No ${grab?'':'trailer '}parts for "${h(q)}"</div>`;
+  return res.map(p=>rowHTML(p,grab?"openWh":"openPopup")).join('');
 }
 function rowHTML(p,fn){
   const logged=isLogged(p);
@@ -378,16 +394,18 @@ function clearWh(){whQ='';const i=$('whq');if(i){i.value='';i.focus();}updateWh(
 // ── FIREBASE LISTENERS ────────────────────────────────────────────────────────
 function startListeners(){
   if(_usageRef)_usageRef.off();
-  if(_shopRef)_shopRef.off();
   _usageRef=DB.ref('geo-restock/teams/'+team+'/usage');
   _usageRef.on('value',snap=>{allUsage=snap.val()||{};if(scr==='loading')scr='nav';render();},()=>{if(scr==='loading')scr='nav';render();});
+}
+function startShop(){                        // shop reorder is shared/team-agnostic — always live
+  if(_shopRef)return;
   _shopRef=DB.ref('geo-restock/shopReorder');
   _shopRef.on('value',snap=>{shopFlags=snap.val()||{};render();},()=>{});
 }
 
 // ── ACTIONS ───────────────────────────────────────────────────────────────────
 function selectTeam(t){team=t;localStorage.setItem('g_team',t);allUsage={};scr='loading';render();startListeners();setTimeout(()=>{if(scr==='loading'){scr='nav';render();}},4000);}
-function goHome(){if(_usageRef){_usageRef.off();_usageRef=null;}if(_shopRef){_shopRef.off();_shopRef=null;}allUsage={};shopFlags={};searchQ='';whQ='';popup=null;repDetail=null;whDetail=null;team=null;localStorage.removeItem('g_team');scr='team';render();}
+function goHome(){if(_usageRef){_usageRef.off();_usageRef=null;}allUsage={};searchQ='';whQ='';popup=null;repDetail=null;whDetail=null;grab=false;fbOpen=false;team=null;localStorage.removeItem('g_team');scr='team';render();}
 function resetTestUsage(){
   if(!isTest())return; // hard guard: only ever the Test team
   if(!confirm('Reset all logged Trailer & Cases items for the Test team?\n\nThis clears only the Test team — no other team and not the weekly reorder list.'))return;
@@ -396,9 +414,8 @@ function resetTestUsage(){
   toast('Test items reset');
   render();
 }
-function goShopReorder(){if(!isTest())return;scr='shopreorder';render();}
+function goShopReorder(){scr='shopreorder';render();}
 function clearShopReorder(){
-  if(!isTest())return; // hard guard: admin maintenance, Test team only
   const n=Object.keys(shopFlags||{}).length;
   if(n===0){toast('Weekly reorder list is already empty');return;}
   if(!confirm('This permanently clears all '+n+' item'+(n!==1?'s':'')+' from the weekly reorder list.\n\nContinue?'))return;
@@ -406,7 +423,62 @@ function clearShopReorder(){
   dbWrite('geo-restock/shopReorder', null);
   shopFlags={};
   toast('Weekly reorder list cleared');
-  scr='nav';render();
+  scr='admin';render();
+}
+let grab=false;         // Grab Shit & Go mode (shop-min flagging instead of usage)
+let fbOpen=false;       // Feedback form overlay
+const LEVELER_EMAIL='conklinm1@yahoo.com'; // <-- SET THIS to your email for "Feedback for Leveler Mitch"
+
+function reorderRows(){
+  return Object.keys(shopFlags||{}).sort((a,b)=>Number(a)-Number(b)).map(id=>{
+    const r=shopFlags[id]||{},p=PMAP[id]||{};
+    return{id:id,name:r.name||p.name||'',vendor:r.vendor||p.vendor||'',
+      vendorPart:(r.vendorPart!=null?r.vendorPart:(p.vendorPart!=null?p.vendorPart:'')),
+      shopMin:(r.shopMin!=null?r.shopMin:(p.shopMin!=null?p.shopMin:''))};
+  });
+}
+function csvCell(v){v=(v==null?'':String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
+function exportReorderCSV(){
+  const rows=reorderRows();
+  if(!rows.length){toast('List is empty');return;}
+  let csv=['Master Record ID','Description','Vendor','Vendor Part #','Shop Min'].join(',')+'\n';
+  rows.forEach(r=>{csv+=[r.id,r.name,r.vendor,r.vendorPart,r.shopMin].map(csvCell).join(',')+'\n';});
+  const d=new Date(),pad=n=>String(n).padStart(2,'0');
+  const fname='GeoReorder_'+d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'.csv';
+  try{
+    const blob=new Blob([csv],{type:'text/csv'}),url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download=fname;document.body.appendChild(a);a.click();
+    setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
+    toast('CSV exported');
+  }catch(e){toast('Export failed');}
+}
+function printReorder(){
+  const rows=reorderRows();
+  if(!rows.length){toast('List is empty');return;}
+  const esc=s=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  let b='<h2 style="font-family:sans-serif;margin-bottom:2px;">GEO Weekly Reorder List</h2>';
+  b+='<div style="font-family:sans-serif;color:#555;margin-bottom:14px;">'+rows.length+' item'+(rows.length!==1?'s':'')+' &middot; '+esc(new Date().toLocaleString())+'</div>';
+  b+='<table style="border-collapse:collapse;font-family:sans-serif;font-size:13px;width:100%;">';
+  b+='<thead><tr>'+['ID','Description','Vendor','Vendor Part #','Shop Min'].map(hh=>'<th style="border:1px solid #999;padding:6px 8px;text-align:left;background:#eee;">'+hh+'</th>').join('')+'</tr></thead><tbody>';
+  rows.forEach(r=>{b+='<tr>'+[r.id,r.name,r.vendor,r.vendorPart,r.shopMin].map(c=>'<td style="border:1px solid #999;padding:6px 8px;">'+esc(c)+'</td>').join('')+'</tr>';});
+  b+='</tbody></table>';
+  const w=window.open('','_blank');
+  if(!w){toast('Allow pop-ups to print');return;}
+  w.document.write('<html><head><title>GEO Weekly Reorder List</title></head><body>'+b+'<'+'script>window.onload=function(){window.print();}<'+'/script></body></html>');
+  w.document.close();
+}
+function goGrab(){grab=true;stockSrc=null;activeCat=null;searchQ='';scr='grabnav';render();}
+function goAdmin(){grab=false;scr='admin';render();}
+function openFeedback(){fbOpen=true;render();setTimeout(()=>{const t=$('fbmsg');if(t)t.focus();},50);}
+function closeFeedback(){fbOpen=false;render();}
+function sendFeedback(){
+  const box=$('fbmsg');const msg=box?box.value.trim():'';
+  if(!msg){toast('Type a message first');return;}
+  if(!LEVELER_EMAIL){toast('Feedback email not set yet');return;}
+  const subject='[GEO Restock Feedback]';
+  const body=msg+'\n\n— — —\nTeam: '+(ti().label||'?')+'\nSent: '+new Date().toLocaleString();
+  window.location.href='mailto:'+LEVELER_EMAIL+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
+  fbOpen=false;render();
 }
 function goStock(src){stockSrc=src;scr='cats';render();}
 function goCat(cat){activeCat=cat;scr='items';render();}
@@ -414,8 +486,12 @@ function goReport(){scr='report';render();}
 function goWarehouse(){whQ='';scr='warehouse';render();}
 function goBack(){
   if(scr==='items'){scr='cats';activeCat=null;}
-  else if(scr==='cats'){scr='nav';stockSrc=null;}
-  else if(scr==='report'||scr==='warehouse'||scr==='shopreorder'){scr='nav';}
+  else if(scr==='cats'){scr=grab?'grabnav':'nav';stockSrc=null;}
+  else if(scr==='warehouse'){scr=grab?'grabnav':'nav';}
+  else if(scr==='grabnav'){grab=false;scr=team?'nav':'team';}
+  else if(scr==='shopreorder'){scr='admin';}
+  else if(scr==='admin'){scr=team?'nav':'team';}
+  else if(scr==='report'){scr='nav';}
   render();
 }
 
@@ -485,34 +561,7 @@ function commitWh(){
   toast(isTest()?'Test — not saved':(whRestock?'Flagged for reorder':'Cleared'));
   render();
 }
-function shopRecord(p){return{flagged:true,team:team,ts:Date.now(),name:p.name,shopMin:(p.shopMin==null?null:p.shopMin),shopOrderQty:(p.shopOrderQty==null?null:p.shopOrderQty),vendor:p.vendor||null,vendorPart:(p.vendorPart==null?null:p.vendorPart)};}
-
-// ── REORDER EXPORT / PRINT ────────────────────────────────────────────────────
-function exportReorderCSV(){
-  const entries=Object.keys(shopFlags||{}).map(id=>Object.assign({id:id},shopFlags[id]||{}));
-  if(!entries.length){toast('Nothing to export');return;}
-  entries.sort((a,b)=>{const va=(a.vendor||'').toLowerCase(),vb=(b.vendor||'').toLowerCase();if(va<vb)return -1;if(va>vb)return 1;return 0;});
-  const rows=[['Master Record ID','Order QTY']];
-  entries.forEach(e=>{const part=PMAP[e.id];const oq=part?part.shopOrderQty:'';rows.push([e.id,oq!=null?oq:'']);});
-  const csv=rows.map(r=>r.map(c=>'"'+String(c==null?'':c).replace(/"/g,'""')+'"').join(',')).join('\n');
-  const blob=new Blob([csv],{type:'text/csv'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');a.href=url;
-  const d=new Date();
-  a.download='GEO_Reorder_'+d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+'.csv';
-  a.click();URL.revokeObjectURL(url);toast('CSV exported ✓');
-}
-function printReorderList(){
-  const entries=Object.keys(shopFlags||{}).map(id=>Object.assign({id:id},shopFlags[id]||{}));
-  if(!entries.length){toast('Nothing to print');return;}
-  entries.sort((a,b)=>{const va=(a.vendor||'').toLowerCase(),vb=(b.vendor||'').toLowerCase();if(va<vb)return -1;if(va>vb)return 1;const na=(a.name||'').toLowerCase(),nb=(b.name||'').toLowerCase();return na<nb?-1:na>nb?1:0;});
-  const byVendor={};entries.forEach(e=>{const v=e.vendor||'Unknown Vendor';if(!byVendor[v])byVendor[v]=[];byVendor[v].push(e);});
-  const vendorKeys=Object.keys(byVendor).sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()));
-  const d=new Date();const ds=d.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
-  const rows=vendorKeys.map(v=>`<div class="vg"><div class="vn">${v}</div><table><thead><tr><th>Part</th><th style="text-align:center;">Shop Min</th><th style="text-align:right;">Order QTY</th></tr></thead><tbody>${byVendor[v].map(e=>{const part=PMAP[e.id];const oq=part?part.shopOrderQty:null;return`<tr><td>${e.name||('Part '+e.id)}</td><td style="text-align:center;">${e.shopMin==null?'—':e.shopMin}</td><td style="text-align:right;font-weight:700;">${oq!=null?oq:'—'}</td></tr>`;}).join('')}</tbody></table></div>`).join('');
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>GEO Weekly Reorder — ${ds}</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:-apple-system,Arial,sans-serif;font-size:12px;color:#000;padding:24px 28px;}h1{font-size:18px;font-weight:800;margin-bottom:3px;}.sub{font-size:11px;color:#555;margin-bottom:20px;}.vg{margin-bottom:16px;break-inside:avoid;}.vn{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;border-bottom:2px solid #000;padding-bottom:3px;margin-bottom:5px;}table{width:100%;border-collapse:collapse;}th{text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#555;padding:3px 6px;border-bottom:1px solid #ccc;}td{padding:4px 6px;border-bottom:1px solid #eee;font-size:12px;}@media print{body{padding:12px;}}</style></head><body><h1>GEO Weekly Reorder List</h1><div class="sub">Generated ${ds} · ${entries.length} item${entries.length!==1?'s':''}</div>${rows}</body></html>`;
-  const w=window.open('','_blank','width=820,height=900');w.document.write(html);w.document.close();w.focus();setTimeout(()=>w.print(),400);
-}
+function shopRecord(p){return{flagged:true,team:team,ts:Date.now(),name:p.name,shopMin:(p.shopMin==null?null:p.shopMin),vendor:p.vendor||null,vendorPart:(p.vendorPart==null?null:p.vendorPart)};}
 
 // ── RENDER ────────────────────────────────────────────────────────────────────
 function render(){const _t=ti();const _r=document.documentElement.style;_r.setProperty('--team-hdr-bg',_t.bg);_r.setProperty('--team-hdr-border',_t.border);$('app').innerHTML=buildHTML();updSync();}
@@ -528,12 +577,17 @@ function buildHTML(){
       <div style="font-size:30px;font-weight:800;color:#e2e8f0;margin-bottom:6px;">GEO Restock</div>
       <div style="font-size:15px;color:#7a8fb5;margin-bottom:26px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;">Select Your Team</div>
       <div class="team-grid">
-        ${Object.entries(TEAMS).map(([id,tm])=>`
+        ${Object.entries(TEAMS).filter(([id])=>id!=='test').map(([id,tm])=>`
           <button class="team-card" onclick="selectTeam('${id}')" style="background:${tm.bg};border:2px solid ${tm.border};">
             <div class="team-card-icon">${tm.icon}</div>
             <div><div class="team-card-label" style="color:${tm.color};">${tm.label}</div>
             <div class="team-card-sub" style="color:${tm.color};">tap to enter</div></div>
           </button>`).join('')}
+        <button class="team-card" onclick="goGrab()" style="background:#3a2410;border:2px solid #6b4416;">
+          <div class="team-card-icon">🧤</div>
+          <div><div class="team-card-label" style="color:#fbbf24;">Grab Shit &amp; Go</div>
+          <div class="team-card-sub" style="color:#fbbf24;">pull from the shelf</div></div>
+        </button>
       </div>
     </div>`;
 
@@ -574,19 +628,76 @@ function buildHTML(){
         <div style="font-size:28px;flex-shrink:0;">🏢</div>
         <div><div class="nav-card-title">Warehouse Stock</div><div class="nav-card-sub">${warehouseParts().length} shop-only items</div></div>
       </button>
-      ${isTest()?`<button class="nav-card" onclick="goShopReorder()" style="background:#2a1a33;border:1px solid #4a2a5c;">
-        <div style="font-size:28px;flex-shrink:0;">🧾</div>
-        <div><div class="nav-card-title">Weekly Reorder List</div><div class="nav-card-sub">${shopN>0?shopN+' item'+(shopN!==1?'s':'')+' flagged shop-wide':'Nothing flagged yet'}</div></div>
-      </button>`:''}
-      ${isTest()?`<div style="text-align:center;margin-top:22px;"><button class="btn ghost" onclick="resetTestUsage()" style="width:auto;display:inline-block;padding:7px 16px;font-size:12px;opacity:.8;color:#a78bfa;border-color:#2e2350;">🧪 Reset Test items</button></div>`:''}
       <div style="height:20px;"></div>
     </div></div>
     ${popup?renderPopup():''}`;
   }
 
+  // GRAB SHIT & GO — landing
+  if(scr==='grabnav'){
+    return`
+    <div class="hdr"><div class="hdr-row">
+      <button class="back" onclick="goBack()">‹</button>
+      <div style="flex:1;min-width:0;"><div class="hdr-title">🧤 Grab Shit &amp; Go</div><div class="hdr-sub" style="color:${t.color};">${t.icon} ${t.label} · flag below-minimums</div></div>
+      ${sdot()}
+    </div></div>
+    <div class="scroll"><div style="padding:16px 20px 4px;">
+      <div style="font-size:11px;color:#4a5a7a;line-height:1.5;margin-bottom:12px;">Grabbing parts off the shelf? Find the item and flag it if you just dropped it below its shop minimum — that adds it to the weekly reorder list.</div>
+      <button class="nav-card" onclick="goStock('trailer')" style="background:#152a45;border:1px solid #2a4a6c;">
+        <div style="font-size:28px;flex-shrink:0;">🚛</div>
+        <div><div class="nav-card-title">Trailer Items</div><div class="nav-card-sub">Browse &amp; flag below-minimum</div></div>
+      </button>
+      <button class="nav-card" onclick="goStock('cases')" style="background:#0f2a3a;border:1px solid #1a3a4a;">
+        <div style="font-size:28px;flex-shrink:0;">🧰</div>
+        <div><div class="nav-card-title">Cases Items</div><div class="nav-card-sub">Browse &amp; flag below-minimum</div></div>
+      </button>
+      <button class="nav-card" onclick="goWarehouse()" style="background:#241a33;border:1px solid #3a2a4c;">
+        <div style="font-size:28px;flex-shrink:0;">🏢</div>
+        <div><div class="nav-card-title">Warehouse Items</div><div class="nav-card-sub">${warehouseParts().length} shop-only items</div></div>
+      </button>
+      <div class="search-wrap" style="padding:0 0 12px;">
+        <div class="search-input-wrap">
+          <input type="text" id="sq" value="${h(searchQ)}" placeholder="Search parts" autocomplete="off" autocorrect="off" spellcheck="false" oninput="updateSearch(this.value)">
+          <button id="sqc" class="srch-clr" onclick="clearSearch()" style="display:${searchQ?'flex':'none'};">✕</button>
+        </div>
+      </div>
+      <div id="sr">${buildSearchResults(searchQ)}</div>
+      <button class="nav-card" onclick="openFeedback()" style="background:#0f2733;border:1px solid #1e4457;">
+        <div style="font-size:28px;flex-shrink:0;">✉️</div>
+        <div><div class="nav-card-title">Feedback for Leveler Mitch</div><div class="nav-card-sub">Something off? Send a message</div></div>
+      </button>
+      <div style="height:20px;"></div>
+    </div></div>
+    ${fbOpen?renderFeedback():''}
+    ${whDetail?renderWhDetail():''}`;
+  }
+
+  // ADMIN — Mitch's room
+  if(scr==='admin'){
+    const shopN=Object.keys(shopFlags||{}).length;
+    return`
+    <div class="hdr"><div class="hdr-row">
+      <button class="back" onclick="goBack()">‹</button>
+      <div style="flex:1;min-width:0;"><div class="hdr-title">⛔ Admin</div></div>
+      ${sdot()}
+    </div></div>
+    <div class="scroll"><div style="padding:20px;">
+      <div style="text-align:center;font-size:22px;font-weight:900;color:#fbbf24;letter-spacing:.5px;margin:6px 0 4px;">Mitch's Room</div>
+      <div style="text-align:center;font-size:13px;font-weight:700;color:#b45309;margin-bottom:22px;">— STAY OUT !! —</div>
+      <button class="nav-card" onclick="goShopReorder()" style="background:#2a1a33;border:1px solid #4a2a5c;">
+        <div style="font-size:28px;flex-shrink:0;">🧾</div>
+        <div><div class="nav-card-title">Weekly Reorder List</div><div class="nav-card-sub">${shopN>0?shopN+' item'+(shopN!==1?'s':'')+' flagged':'Nothing flagged yet'}</div></div>
+      </button>
+      <div style="text-align:center;margin-top:20px;">
+        <button class="btn" onclick="clearShopReorder()" style="width:auto;display:inline-block;padding:10px 20px;font-size:13px;font-weight:700;background:#3a1520;border:1px solid #6e2233;color:#fca5a5;">🗑 Reset Weekly Reorder List</button>
+      </div>
+      <div style="height:20px;"></div>
+    </div></div>`;
+  }
+
   // CATEGORIES
   if(scr==='cats'){
-    const label=stockSrc==='trailer'?'🚛 Trailer Stock':'🧰 Cases Stock';
+    const label=grab?(stockSrc==='trailer'?'🚛 Trailer Items':'🧰 Cases Items'):(stockSrc==='trailer'?'🚛 Trailer Stock':'🧰 Cases Stock');
     return`
       <div class="hdr"><div class="hdr-row">
         <button class="back" onclick="goBack()">‹</button>
@@ -606,7 +717,7 @@ function buildHTML(){
   // ITEMS
   if(scr==='items'){
     const items=catParts(stockSrc,activeCat);
-    const srcLabel=stockSrc==='trailer'?'🚛 Trailer':'🧰 Cases';
+    const srcLabel=(grab?'🧤 Grab · ':'')+(stockSrc==='trailer'?'🚛 Trailer':'🧰 Cases');
     return`
       <div class="hdr"><div class="hdr-row">
         <button class="back" onclick="goBack()">‹</button>
@@ -617,20 +728,22 @@ function buildHTML(){
       <div class="scroll" style="position:relative;">
         ${viewMode==='grid'
           ? `<div class="wh-grid">`+items.map(p=>{
-              const logged=isLogged(p);
+              const flagged=grab?!!shopFlags[p.id]:isLogged(p);
               const img=p.img?`<img src="${h(p.img)}" alt="" onerror="imgFail(this)">`:`<div class="img-ph">No image</div>`;
-              const badge=logged?(p.isEach?`<span class="wh-tile-badge">-${allUsage[p.id]}</span>`:`<span class="wh-tile-badge">↻</span>`):'';
-              return`<button class="wh-tile${logged?' flagged':''}" onclick="openPopup(${p.id})">
+              const badge=grab?(shopFlags[p.id]?`<span class="wh-tile-badge">🧾</span>`:'')
+                             :(isLogged(p)?(p.isEach?`<span class="wh-tile-badge">-${allUsage[p.id]}</span>`:`<span class="wh-tile-badge">↻</span>`):'');
+              return`<button class="wh-tile${flagged?' flagged':''}" onclick="${grab?'openWh':'openPopup'}(${p.id})">
                 <div class="wh-thumb">${img}</div>
                 <div class="wh-tile-name">${h(p.name)}</div>
                 ${badge}
               </button>`;
             }).join('')+`</div>`
           : items.map(p=>{
-          const logged=isLogged(p);
-          let right=logged?(p.isEach?`<span class="badge">-${allUsage[p.id]}</span>`:`<span class="badge flag">↻ ${h(p.refillTo)}</span>`):'';
-          const meta=p.isEach?`Max: ${h(p.trailerMax)}${p.trailerMin!=null?' · Min: '+h(p.trailerMin):''}`:`Refill to: ${h(p.refillTo)}`;
-          return`<button class="item-row${logged?' used':''}" onclick="openPopup(${p.id})">
+          const flagged=grab?!!shopFlags[p.id]:isLogged(p);
+          let right=grab?(shopFlags[p.id]?`<span class="badge flag">🧾</span>`:'')
+                        :(isLogged(p)?(p.isEach?`<span class="badge">-${allUsage[p.id]}</span>`:`<span class="badge flag">↻ ${h(p.refillTo)}</span>`):'');
+          const meta=grab?`Shop min: ${p.shopMin==null||p.shopMin===''?'—':h(p.shopMin)}`:(p.isEach?`Max: ${h(p.trailerMax)}${p.trailerMin!=null?' · Min: '+h(p.trailerMin):''}`:`Refill to: ${h(p.refillTo)}`);
+          return`<button class="item-row${flagged?' used':''}" onclick="${grab?'openWh':'openPopup'}(${p.id})">
             <div style="flex:1;min-width:0;">
               <div class="item-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h(p.name)}</div>
               <div class="item-meta">${meta}</div></div>
@@ -638,7 +751,7 @@ function buildHTML(){
           </button>`;
         }).join('')}
         <div style="height:20px;"></div>
-      </div>${popup?renderPopup():''}`;
+      </div>${popup?renderPopup():''}${whDetail?renderWhDetail():''}`;
   }
 
   // REPORT
@@ -677,17 +790,6 @@ function buildHTML(){
   // WEEKLY REORDER LIST (Test-only admin)
   if(scr==='shopreorder'){
     const entries=Object.keys(shopFlags||{}).map(id=>Object.assign({id:id},shopFlags[id]||{}));
-    // Sort by vendor alpha, then part name alpha within vendor
-    entries.sort((a,b)=>{
-      const va=(a.vendor||'').toLowerCase(),vb=(b.vendor||'').toLowerCase();
-      if(va<vb)return -1;if(va>vb)return 1;
-      const na=(a.name||'').toLowerCase(),nb=(b.name||'').toLowerCase();
-      return na<nb?-1:na>nb?1:0;
-    });
-    // Group by vendor
-    const byVendor={};
-    entries.forEach(e=>{const v=e.vendor||'Unknown Vendor';if(!byVendor[v])byVendor[v]=[];byVendor[v].push(e);});
-    const vendorKeys=Object.keys(byVendor).sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()));
     return`
       <div class="hdr"><div class="hdr-row">
         <button class="back" onclick="goBack()">‹</button>
@@ -701,30 +803,16 @@ function buildHTML(){
             <div style="font-size:44px;margin-bottom:12px;">✅</div>
             <div style="font-size:16px;font-weight:700;color:#22c55e;margin-bottom:6px;">List is empty</div>
             <div style="font-size:13px;color:#4a5a7a;">Nothing is flagged for reorder right now.</div></div>`:
-          `${vendorKeys.map(v=>`
-            <div style="margin-bottom:18px;">
-              <div style="font-size:12px;font-weight:800;color:#e2e8f0;text-transform:uppercase;letter-spacing:.06em;padding:5px 0;border-bottom:1px solid #2a3a5c;margin-bottom:4px;">${h(v)}</div>
-              ${byVendor[v].map(e=>{
-                const part=PMAP[e.id];
-                const orderQty=part?part.shopOrderQty:null;
-                return`<div class="rep-row" style="cursor:default;padding-left:14px;">
-                  <div style="flex:1;min-width:0;">
-                    <div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h(e.name||('Part '+e.id))}</div>
-                    <div style="font-size:11px;color:#4a5a7a;margin-top:2px;">Shop min: ${e.shopMin==null?'—':h(String(e.shopMin))}</div>
-                  </div>
-                  <div style="text-align:right;flex-shrink:0;margin-left:8px;">
-                    <div style="font-size:14px;font-weight:700;color:#38bdf8;">Order: ${orderQty!=null?h(String(orderQty)):'—'}</div>
-                  </div>
-                </div>`;
-              }).join('')}
+          entries.map(e=>`<div class="rep-row" style="cursor:default;">
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h(e.name||('Part '+e.id))}</div>
+                <div style="font-size:11px;color:#4a5a7a;margin-top:2px;">${e.vendor?h(String(e.vendor))+' · ':''}Shop min: ${e.shopMin==null?'—':h(String(e.shopMin))}${e.team?' · by '+h(String(e.team)):''}</div>
+              </div>
             </div>`).join('')}
-          <div style="display:flex;gap:10px;margin-top:8px;">
-            <button class="btn green" onclick="exportReorderCSV()" style="flex:1;">📥 Export CSV</button>
-            <button class="btn ghost" onclick="printReorderList()" style="flex:1;">🖨 Print</button>
-          </div>
-          <div style="text-align:center;margin-top:14px;">
-            <button class="btn" onclick="clearShopReorder()" style="width:auto;display:inline-block;padding:10px 20px;font-size:13px;font-weight:700;background:#3a1520;border:1px solid #6e2233;color:#fca5a5;">🗑 Clear Weekly Reorder List</button>
-          </div>`}
+        ${entries.length>0?`<div style="display:flex;gap:10px;margin-top:24px;">
+            <button class="btn ghost" onclick="printReorder()" style="flex:1;padding:11px;font-size:13px;font-weight:700;">🖨 Print</button>
+            <button class="btn ghost" onclick="exportReorderCSV()" style="flex:1;padding:11px;font-size:13px;font-weight:700;">⬇ Export CSV</button>
+          </div>`:''}
         <div style="height:20px;"></div>
       </div></div>`;
   }
@@ -734,7 +822,7 @@ function buildHTML(){
     return`
       <div class="hdr"><div class="hdr-row">
         <button class="back" onclick="goBack()">‹</button>
-        <div style="flex:1;min-width:0;"><div class="hdr-title">🏢 Warehouse Stock</div><div class="hdr-sub" style="color:${t.color};">${t.icon} Team ${t.label}</div></div>
+        <div style="flex:1;min-width:0;"><div class="hdr-title">🏢 Warehouse ${grab?'Items':'Stock'}</div><div class="hdr-sub" style="color:${t.color};">${t.icon} Team ${t.label}</div></div>
         <button class="icon-btn" onclick="toggleView()" title="Toggle view">${viewIcon()}</button>
         ${sdot()}
       </div></div>
@@ -805,9 +893,20 @@ function renderWhDetail(){
     <div class="pop-name">${h(p.name)}</div>
     <div class="pop-meta">${p.vendor?h(p.vendor):'Warehouse item'}</div>
     <div class="detail-stat" style="margin-bottom:16px;"><span class="k">Shop minimum</span><span class="v">${h(p.shopMin)}</span></div>
-    <div class="chk${whRestock?' on':''}" onclick="toggleWhRestock()"><div class="box">${whRestock?'✓':''}</div><div class="lbl">RESTOCK<small>Below minimum — add to weekly reorder</small></div></div>
+    <div class="chk${whRestock?' on':''}" onclick="toggleWhRestock()"><div class="box">${whRestock?'✓':''}</div><div class="lbl">Below Shop Minimum<small>Add to the weekly reorder list</small></div></div>
     ${isTest()?'<div style="font-size:12px;color:#a78bfa;text-align:center;margin:2px 0 12px;">🧪 Test mode — this will not be saved</div>':''}
     <button class="btn blue" onclick="commitWh()">Done</button>
+  </div></div>`;
+}
+
+// ── FEEDBACK ──────────────────────────────────────────────────────────────────
+function renderFeedback(){
+  return`<div class="overlay" onclick="if(event.target===this)closeFeedback()"><div class="popup">
+    <div class="pop-name">✉️ Feedback for Leveler Mitch</div>
+    <div class="pop-meta" style="margin-bottom:10px;">Type your message. Tap Send to open your mail app — you can attach a photo there before sending.</div>
+    <textarea id="fbmsg" placeholder="What's going on? (bug, wrong part, idea…)" style="width:100%;min-height:120px;box-sizing:border-box;background:#0d1526;border:1px solid #24314d;border-radius:12px;color:#e2e8f0;font-size:15px;font-family:inherit;padding:12px;resize:vertical;margin-bottom:12px;"></textarea>
+    <button class="btn blue" onclick="sendFeedback()">Send</button>
+    <button class="btn ghost" style="margin-top:8px;" onclick="closeFeedback()">Cancel</button>
   </div></div>`;
 }
 
@@ -817,6 +916,7 @@ function boot(){
   fetch('GeothermParts.json').then(r=>r.json()).then(raw=>{
     PARTS=raw.map(mapPart);PMAP={};PARTS.forEach(p=>PMAP[p.id]=p);
     flushQueue();
+    startShop();
     if(team){scr='loading';render();startListeners();setTimeout(()=>{if(scr==='loading'){scr='nav';render();}},4000);}
     else{scr='team';render();}
     setTimeout(maybeAutoRefresh,2500);
