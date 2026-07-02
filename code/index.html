@@ -128,7 +128,7 @@ input{width:100%;padding:13px 14px;background:#1a2540;border:1px solid #2a3a5c;b
 .wh-tile-badge{position:absolute;top:3px;right:3px;background:#38bdf8;color:#0f172a;font-size:7px;font-weight:800;padding:1px 4px;border-radius:4px}
 .detail-stat.tappable{cursor:pointer;border-color:#2a4a6c}
 .detail-stat.tappable .k{color:#38bdf8}
-.team-logo{max-width:200px;max-height:120px;width:auto;height:auto;margin-bottom:18px;object-fit:contain}
+.team-logo{width:min(88vw,460px);max-height:40vh;height:auto;margin-bottom:18px;object-fit:contain}
 @keyframes cardpoof{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.5)}}
 .puffing{animation:cardpoof .4s ease-in forwards;pointer-events:none}
 @keyframes smokeP{0%{opacity:0;transform:translate(-50%,-50%) translate(0,0) scale(.3)}15%{opacity:.85}100%{opacity:0;transform:translate(-50%,-50%) translate(var(--dx),var(--dy)) scale(var(--s))}}
@@ -425,7 +425,7 @@ function clearShopReorder(){
   toast('Weekly reorder list cleared');
   scr='admin';render();
 }
-let grab=false;         // Grab Shit & Go mode (shop-min flagging instead of usage)
+let grab=false;         // Part & Dart mode (shop-min flagging instead of usage)
 let fbOpen=false;       // Feedback form overlay
 const LEVELER_EMAIL='conklinm1@yahoo.com'; // <-- SET THIS to your email for "Feedback for Leveler Mitch"
 
@@ -583,10 +583,10 @@ function buildHTML(){
             <div><div class="team-card-label" style="color:${tm.color};">${tm.label}</div>
             <div class="team-card-sub" style="color:${tm.color};">tap to enter</div></div>
           </button>`).join('')}
-        <button class="team-card" onclick="goGrab()" style="background:#3a2410;border:2px solid #6b4416;">
-          <div class="team-card-icon">🧤</div>
-          <div><div class="team-card-label" style="color:#fbbf24;">Grab Shit &amp; Go</div>
-          <div class="team-card-sub" style="color:#fbbf24;">pull from the shelf</div></div>
+        <button class="team-card" onclick="goGrab()" style="background:linear-gradient(135deg,#a51d1d,#6e1414);border:2px solid #d94b4b;">
+          <div class="team-card-icon">⏱️</div>
+          <div><div class="team-card-label" style="color:#ffffff;">Part &amp; Dart 🎯</div>
+          <div class="team-card-sub" style="color:#f3c4c4;">pull from the shelf</div></div>
         </button>
       </div>
     </div>`;
@@ -628,8 +628,13 @@ function buildHTML(){
         <div style="font-size:28px;flex-shrink:0;">🏢</div>
         <div><div class="nav-card-title">Warehouse Stock</div><div class="nav-card-sub">${warehouseParts().length} shop-only items</div></div>
       </button>
+      <button class="nav-card" onclick="openFeedback()" style="background:#0f2733;border:1px solid #1e4457;">
+        <div style="font-size:28px;flex-shrink:0;">✉️</div>
+        <div><div class="nav-card-title">Feedback for Leveler Mitch</div><div class="nav-card-sub">Something off? Send a message</div></div>
+      </button>
       <div style="height:20px;"></div>
     </div></div>
+    ${fbOpen?renderFeedback():''}
     ${popup?renderPopup():''}`;
   }
 
@@ -638,7 +643,7 @@ function buildHTML(){
     return`
     <div class="hdr"><div class="hdr-row">
       <button class="back" onclick="goBack()">‹</button>
-      <div style="flex:1;min-width:0;"><div class="hdr-title">🧤 Grab Shit &amp; Go</div><div class="hdr-sub" style="color:${t.color};">${t.icon} ${t.label} · flag below-minimums</div></div>
+      <div style="flex:1;min-width:0;"><div class="hdr-title">🎯 Part &amp; Dart</div><div class="hdr-sub" style="color:${t.color};">${t.icon} ${t.label} · flag below-minimums</div></div>
       ${sdot()}
     </div></div>
     <div class="scroll"><div style="padding:16px 20px 4px;">
@@ -717,7 +722,7 @@ function buildHTML(){
   // ITEMS
   if(scr==='items'){
     const items=catParts(stockSrc,activeCat);
-    const srcLabel=(grab?'🧤 Grab · ':'')+(stockSrc==='trailer'?'🚛 Trailer':'🧰 Cases');
+    const srcLabel=(grab?'🎯 Part & Dart · ':'')+(stockSrc==='trailer'?'🚛 Trailer':'🧰 Cases');
     return`
       <div class="hdr"><div class="hdr-row">
         <button class="back" onclick="goBack()">‹</button>
