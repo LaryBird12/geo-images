@@ -1,0 +1,19 @@
+# Local working files (not for public repo)
+Geo Master Inventory.xlsm
+*.xlsm
+*.xlsx
+*.xls
+Macbook Web Server.py
+Instructions.rtf
+Bulk Image Resize/
+
+# Mac / OS junk
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+
+# Misc
+*.pyc
+__pycache__/
+.env
