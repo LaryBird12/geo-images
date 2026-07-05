@@ -145,6 +145,7 @@ input{width:100%;padding:13px 14px;background:#1a2540;border:1px solid #2a3a5c;b
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script>
 firebase.initializeApp({
   apiKey:"AIzaSyDuI7AKeK-iKcTecsxWe44jpgB3TptNxOA",
@@ -929,7 +930,16 @@ function boot(){
     $('app').innerHTML='<div style="height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;color:#ef4444;font-size:14px;padding:30px;">Could not load GeothermParts.json.<br>Make sure it sits next to index.html.</div>';
   });
 }
-boot();
+
+// ── ANONYMOUS AUTH (silent sign-in before any Firebase reads/writes) ──────────
+let _booted=false;
+function bootOnce(){if(_booted)return;_booted=true;boot();}
+firebase.auth().onAuthStateChanged(u=>{if(u)bootOnce();});
+firebase.auth().signInAnonymously().catch(e=>{
+  console.warn('Anonymous sign-in failed:',e&&e.code);
+  bootOnce(); // still boot so cached UI works offline; writes queue as usual
+});
+setTimeout(bootOnce,5000); // safety net: never leave the app stuck on a blank screen
 
 // service worker (offline caching of app shell, JSON, and images)
 if('serviceWorker' in navigator && location.protocol==='https:'){
