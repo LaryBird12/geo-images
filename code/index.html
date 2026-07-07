@@ -189,6 +189,8 @@ function mapPart(r){
     shopOrderQty:r["Warehouse Order QTY"],
     vendor:r["Vendor"]||'',
     vendorPart:r["VEN Part #"],
+    venUrl:r["VEN URL"]||'',           // reorder-report web link; blank if not yet in the export
+    venCaseQty:r["VEN Case QTY"]||'',  // reorder-report case size, e.g. "Box of 50"; blank if not yet in the export
     img:r["Image Path"]||'',
     macro:r["Macro Sort"]||'',
     micro:Number(r["Micro Sort"])||0
@@ -431,19 +433,32 @@ let fbOpen=false;       // Feedback form overlay
 const LEVELER_EMAIL='conklinm1@yahoo.com'; // <-- SET THIS to your email for "Feedback for Leveler Mitch"
 
 function reorderRows(){
+  const teamOrder=Object.keys(TEAMS).filter(t=>t!=='test'); // fixed, sensible display order
   return Object.keys(shopFlags||{}).sort((a,b)=>Number(a)-Number(b)).map(id=>{
     const r=shopFlags[id]||{},p=PMAP[id]||{};
-    return{id:id,name:r.name||p.name||'',vendor:r.vendor||p.vendor||'',
-      vendorPart:(r.vendorPart!=null?r.vendorPart:(p.vendorPart!=null?p.vendorPart:'')),
-      shopMin:(r.shopMin!=null?r.shopMin:(p.shopMin!=null?p.shopMin:''))};
+    const info=r.info||r; // r.info is the current shape; bare r is a fallback for pre-multi-team entries
+    // r.teams is a map of every team that has flagged this item, e.g. {gold:true,titanium:true}.
+    // Legacy entries only ever had a single r.team string — treat that as a one-team set so old,
+    // not-yet-cleared flags still display correctly instead of showing blank.
+    const teamsObj=r.teams||(r.team?{[r.team]:true}:{});
+    const teamLabel=teamOrder.filter(t=>teamsObj[t]).map(t=>TEAMS[t].label).join(', ');
+    return{id:id,name:info.name||p.name||'',vendor:info.vendor||p.vendor||'',teamLabel,
+      vendorPart:(info.vendorPart!=null?info.vendorPart:(p.vendorPart!=null?p.vendorPart:'')),
+      shopMin:(info.shopMin!=null?info.shopMin:(p.shopMin!=null?p.shopMin:'')),
+      // Order Qty / VEN Case QTY / VEN URL are NOT frozen at flag-time like the fields above —
+      // they always read live from the current catalog, so fixing a link or case size in the
+      // next export corrects it immediately for items already sitting on the reorder list.
+      orderQty:(p.shopOrderQty!=null?p.shopOrderQty:''),
+      venCaseQty:p.venCaseQty||'',
+      venUrl:p.venUrl||''};
   });
 }
 function csvCell(v){v=(v==null?'':String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
 function exportReorderCSV(){
   const rows=reorderRows();
   if(!rows.length){toast('List is empty');return;}
-  let csv=['Master Record ID','Description','Vendor','Vendor Part #','Shop Min'].join(',')+'\n';
-  rows.forEach(r=>{csv+=[r.id,r.name,r.vendor,r.vendorPart,r.shopMin].map(csvCell).join(',')+'\n';});
+  let csv=['Master Record ID','Description','Vendor','Vendor Part #','Shop Min','Order Qty','VEN Case QTY','VEN URL','Flagged By'].join(',')+'\n';
+  rows.forEach(r=>{csv+=[r.id,r.name,r.vendor,r.vendorPart,r.shopMin,r.orderQty,r.venCaseQty,r.venUrl,r.teamLabel].map(csvCell).join(',')+'\n';});
   const d=new Date(),pad=n=>String(n).padStart(2,'0');
   const fname='GeoReorder_'+d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'.csv';
   try{
@@ -453,19 +468,53 @@ function exportReorderCSV(){
     toast('CSV exported');
   }catch(e){toast('Export failed');}
 }
+// Print view: one vendor per printed page, forced landscape letter, native <thead> repetition
+// so the vendor name + column titles reappear automatically on any continuation page.
 function printReorder(){
   const rows=reorderRows();
   if(!rows.length){toast('List is empty');return;}
   const esc=s=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-  let b='<h2 style="font-family:sans-serif;margin-bottom:2px;">GEO Weekly Reorder List</h2>';
-  b+='<div style="font-family:sans-serif;color:#555;margin-bottom:14px;">'+rows.length+' item'+(rows.length!==1?'s':'')+' &middot; '+esc(new Date().toLocaleString())+'</div>';
-  b+='<table style="border-collapse:collapse;font-family:sans-serif;font-size:13px;width:100%;">';
-  b+='<thead><tr>'+['ID','Description','Vendor','Vendor Part #','Shop Min'].map(hh=>'<th style="border:1px solid #999;padding:6px 8px;text-align:left;background:#eee;">'+hh+'</th>').join('')+'</tr></thead><tbody>';
-  rows.forEach(r=>{b+='<tr>'+[r.id,r.name,r.vendor,r.vendorPart,r.shopMin].map(c=>'<td style="border:1px solid #999;padding:6px 8px;">'+esc(c)+'</td>').join('')+'</tr>';});
-  b+='</tbody></table>';
+
+  // Group by vendor (case-insensitive alpha order); items with no vendor land in one bucket.
+  const byVendor={};
+  rows.forEach(r=>{const v=r.vendor||'Unknown Vendor';(byVendor[v]=byVendor[v]||[]).push(r);});
+  const vendorNames=Object.keys(byVendor).sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()));
+
+  const d=new Date();
+  let b='<h1>GEO Weekly Reorder List</h1>';
+  b+='<div class="sub">Generated '+esc(d.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}))+' &middot; '+rows.length+' item'+(rows.length!==1?'s':'')+'</div>';
+
+  b+=vendorNames.map((v,vi)=>{
+    const items=byVendor[v];
+    // .pagebreak forces every vendor after the first onto its own fresh page;
+    // the thead (vendor name row + column-title row) reprints on any overflow page for free.
+    let t='<table class="vgroup'+(vi>0?' pagebreak':'')+'">';
+    t+='<thead><tr><th colspan="6" class="vname">'+esc(v)+'</th></tr>';
+    t+='<tr>'+['Part','Shop Min','Order Qty','VEN Case QTY','Web Link','Flagged By'].map(hh=>'<th>'+hh+'</th>').join('')+'</tr></thead>';
+    t+='<tbody>'+items.map(r=>{
+      const link=r.venUrl?'<a href="'+h(r.venUrl)+'">Web Link</a>':'—';
+      return '<tr><td>'+esc(r.name)+'</td><td class="num">'+esc(r.shopMin)+'</td><td class="num">'+esc(r.orderQty)+'</td><td class="num">'+esc(r.venCaseQty)+'</td><td>'+link+'</td><td>'+esc(r.teamLabel)+'</td></tr>';
+    }).join('')+'</tbody></table>';
+    return t;
+  }).join('');
+
+  const style='@page{size:letter landscape;margin:0.4in;}'+
+    '*{box-sizing:border-box;}'+
+    'body{font-family:-apple-system,Arial,sans-serif;color:#111;margin:0;padding:0 4px;}'+
+    'h1{font-size:20px;font-weight:800;margin:0 0 2px;}'+
+    '.sub{font-size:12px;color:#555;margin-bottom:16px;}'+
+    'table.vgroup{width:100%;border-collapse:collapse;margin-bottom:22px;}'+
+    'table.vgroup.pagebreak{page-break-before:always;break-before:page;}'+
+    'th.vname{text-align:left;font-size:14px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid #000;padding:4px 6px 6px;}'+
+    'thead tr:nth-child(2) th{text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#555;border-bottom:1px solid #999;padding:5px 6px;}'+
+    'tbody td{font-size:12px;padding:5px 6px;border-bottom:1px solid #eee;page-break-inside:avoid;break-inside:avoid;}'+
+    'tbody tr{page-break-inside:avoid;break-inside:avoid;}'+
+    'td.num{text-align:right;}'+
+    'a{color:#1155cc;text-decoration:underline;}';
+
   const w=window.open('','_blank');
   if(!w){toast('Allow pop-ups to print');return;}
-  w.document.write('<html><head><title>GEO Weekly Reorder List</title></head><body>'+b+'<'+'script>window.onload=function(){window.print();}<'+'/script></body></html>');
+  w.document.write('<html><head><title>GEO Weekly Reorder List</title><style>'+style+'</style></head><body>'+b+'<'+'script>window.onload=function(){window.print();}<'+'/script></body></html>');
   w.document.close();
 }
 function goGrab(){grab=true;stockSrc=null;activeCat=null;searchQ='';scr='grabnav';render();}
@@ -542,7 +591,7 @@ function commitRepDetail(){
   const p=repDetail;if(!p)return;
   const finish=()=>{
     if(repRecv)dbWrite('geo-restock/teams/'+team+'/usage/'+p.id,null);   // clear demand
-    if(!isTest())dbWrite('geo-restock/shopReorder/'+p.id, repBelow?shopRecord(p):null); // set/clear below-min flag
+    if(!isTest()){if(repBelow)flagReorder(p);else dbWrite('geo-restock/shopReorder/'+p.id,null);} // set/clear below-min flag
     repDetail=null;
     toast(isTest()?'Test — not saved to reorder':(repRecv?'Restocked ✓':'Saved'));
     render();
@@ -557,12 +606,21 @@ function openWh(id){whDetail=PMAP[id];whRestock=!!shopFlags[id];render();}
 function toggleWhRestock(){whRestock=!whRestock;render();}
 function commitWh(){
   const p=whDetail;if(!p)return;
-  if(!isTest())dbWrite('geo-restock/shopReorder/'+p.id, whRestock?shopRecord(p):null);
+  if(!isTest()){if(whRestock)flagReorder(p);else dbWrite('geo-restock/shopReorder/'+p.id,null);}
   whDetail=null;
   toast(isTest()?'Test — not saved':(whRestock?'Flagged for reorder':'Cleared'));
   render();
 }
-function shopRecord(p){return{flagged:true,team:team,ts:Date.now(),name:p.name,shopMin:(p.shopMin==null?null:p.shopMin),vendor:p.vendor||null,vendorPart:(p.vendorPart==null?null:p.vendorPart)};}
+// Flagging an item writes to two separate sub-paths instead of overwriting the whole node:
+// /info holds the latest snapshot (name/shopMin/vendor/vendorPart/ts), /teams/{team}=true accumulates
+// every team that has flagged it, so a second team flagging the same item adds their name instead of
+// replacing the first team's. Unflagging (see callers above) still deletes the whole node — clearing
+// it removes it for everyone, by design (confirmed with Mitch: no per-team partial-clear).
+function shopInfo(p){return{ts:Date.now(),name:p.name,shopMin:(p.shopMin==null?null:p.shopMin),vendor:p.vendor||null,vendorPart:(p.vendorPart==null?null:p.vendorPart)};}
+function flagReorder(p){
+  dbWrite('geo-restock/shopReorder/'+p.id+'/info', shopInfo(p));
+  if(team)dbWrite('geo-restock/shopReorder/'+p.id+'/teams/'+team, true); // Part & Dart with no team picked: no team credited
+}
 
 // ── RENDER ────────────────────────────────────────────────────────────────────
 function render(){const _t=ti();const _r=document.documentElement.style;_r.setProperty('--team-hdr-bg',_t.bg);_r.setProperty('--team-hdr-border',_t.border);$('app').innerHTML=buildHTML();updSync();}
@@ -795,27 +853,30 @@ function buildHTML(){
 
   // WEEKLY REORDER LIST (Test-only admin)
   if(scr==='shopreorder'){
-    const entries=Object.keys(shopFlags||{}).map(id=>Object.assign({id:id},shopFlags[id]||{}));
+    // Single shared dataset for screen/print/CSV — reorderRows() joins shopFlags + live catalog
+    // (Order Qty / VEN Case QTY / VEN URL always come from the current catalog, see reorderRows()).
+    const rows=reorderRows();
     return`
       <div class="hdr"><div class="hdr-row">
         <button class="back" onclick="goBack()">‹</button>
         <div style="flex:1;"><div class="hdr-title">Weekly Reorder List</div>
-        <div class="hdr-sub"><span style="color:${t.color};">${t.icon} ${t.label}</span>${entries.length>0?' · '+entries.length+' item'+(entries.length!==1?'s':''):''}</div></div>
+        <div class="hdr-sub"><span style="color:${t.color};">${t.icon} ${t.label}</span>${rows.length>0?' · '+rows.length+' item'+(rows.length!==1?'s':''):''}</div></div>
         ${sdot()}
       </div></div>
       <div class="scroll"><div style="padding:14px 18px;">
         <div style="font-size:11px;color:#4a5a7a;line-height:1.5;margin-bottom:12px;">Shop-wide reorder flags, raised by any team when an item drops below its shop minimum. Clear this after the weekly order is placed.</div>
-        ${entries.length===0?`<div style="padding:48px 24px;text-align:center;">
+        ${rows.length===0?`<div style="padding:48px 24px;text-align:center;">
             <div style="font-size:44px;margin-bottom:12px;">✅</div>
             <div style="font-size:16px;font-weight:700;color:#22c55e;margin-bottom:6px;">List is empty</div>
             <div style="font-size:13px;color:#4a5a7a;">Nothing is flagged for reorder right now.</div></div>`:
-          entries.map(e=>`<div class="rep-row" style="cursor:default;">
+          rows.map(r=>`<div class="rep-row" style="cursor:default;">
               <div style="flex:1;min-width:0;">
-                <div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h(e.name||('Part '+e.id))}</div>
-                <div style="font-size:11px;color:#4a5a7a;margin-top:2px;">${e.vendor?h(String(e.vendor))+' · ':''}Shop min: ${e.shopMin==null?'—':h(String(e.shopMin))}${e.team?' · by '+h(String(e.team)):''}</div>
+                <div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h(r.name||('Part '+r.id))}</div>
+                <div style="font-size:11px;color:#4a5a7a;margin-top:2px;">${r.vendor?h(String(r.vendor))+' · ':''}Shop min: ${(r.shopMin==null||r.shopMin==='')?'—':h(String(r.shopMin))}${r.venCaseQty?' · '+h(String(r.venCaseQty)):''}${r.teamLabel?' · by '+h(r.teamLabel):''}</div>
               </div>
+              ${r.venUrl?`<a href="${h(r.venUrl)}" target="_blank" rel="noopener" style="flex-shrink:0;margin-left:8px;font-size:11px;font-weight:700;color:#38bdf8;text-decoration:none;white-space:nowrap;" onclick="event.stopPropagation()">🔗 Web Link</a>`:''}
             </div>`).join('')}
-        ${entries.length>0?`<div style="display:flex;gap:10px;margin-top:24px;">
+        ${rows.length>0?`<div style="display:flex;gap:10px;margin-top:24px;">
             <button class="btn ghost" onclick="printReorder()" style="flex:1;padding:11px;font-size:13px;font-weight:700;">🖨 Print</button>
             <button class="btn ghost" onclick="exportReorderCSV()" style="flex:1;padding:11px;font-size:13px;font-weight:700;">⬇ Export CSV</button>
           </div>`:''}
