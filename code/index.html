@@ -200,7 +200,7 @@ function mapPart(r){
 // ── STATE ─────────────────────────────────────────────────────────────────────
 let team=localStorage.getItem('g_team')||null;
 let allUsage={},shopFlags={},searchQ='',whQ='';
-let scr=team?'loading':'team';
+let scr='login'; // app always starts gated behind login; onAuthStateChanged below decides where to go next
 let stockSrc=null,activeCat=null;
 let popup=null,popQty=0,popFlag=false;          // usage popup
 let repDetail=null,repRecv=false,repBelow=false; // report detail
@@ -285,6 +285,7 @@ function showSyncInfo(){
     <div class="syncrow2"><span>🗂 Catalog</span><b>updated ${h(lastRefreshTxt())}</b></div>
     <button class="btn ghost sm" style="width:100%;margin-top:14px;color:#fbbf24;border-color:#6b4416;" onclick="askAdmin()">⛔ Admin Only</button>
     <button class="btn ghost sm" style="width:100%;margin-top:8px;" onclick="hideSyncInfo();refreshCache();">↻ Refresh Data</button>
+    <button class="btn ghost sm" style="width:100%;margin-top:8px;color:#fca5a5;" onclick="hideSyncInfo();doSignOut();">🚪 Sign Out</button>
     <button class="btn ghost sm" style="width:100%;margin-top:8px;" onclick="hideSyncInfo()">Close</button>
   </div>`;
   $('syncinfo').style.display='flex';
@@ -639,6 +640,20 @@ function render(){const _t=ti();const _r=document.documentElement.style;_r.setPr
 
 function buildHTML(){
   const t=ti();
+  // LOGIN — gates the entire app; nothing below this ever renders until signed in
+  if(scr==='login')return`
+    <div class="team-screen">
+      <img src="Logo.png" alt="" class="team-logo" onerror="this.style.display='none'">
+      <div style="font-size:30px;font-weight:800;color:#e2e8f0;margin-bottom:6px;">GEO Restock</div>
+      <div style="font-size:15px;color:#7a8fb5;margin-bottom:26px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;">Sign In</div>
+      <div style="width:100%;max-width:340px;">
+        <div id="loginErrMsg" style="display:none;background:#3a1520;border:1px solid #6e2233;color:#fca5a5;font-size:13px;font-weight:600;padding:10px 14px;border-radius:10px;margin-bottom:14px;text-align:center;"></div>
+        <input type="email" id="loginEmail" placeholder="Email" autocomplete="username" autocorrect="off" autocapitalize="off" spellcheck="false" style="margin-bottom:10px;" onkeydown="if(event.key==='Enter'){event.preventDefault();$('loginPassword').focus();}">
+        <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password" style="margin-bottom:16px;" onkeydown="if(event.key==='Enter'){event.preventDefault();doLogin();}">
+        <button id="loginBtn" class="btn blue" onclick="doLogin()">Sign In</button>
+      </div>
+    </div>`;
+
   if(scr==='loading')return`<div style="height:100vh;display:flex;align-items:center;justify-content:center;color:#4a5a7a;font-size:16px;">Loading…</div>`;
 
   // TEAM SELECT
@@ -1004,15 +1019,36 @@ function boot(){
   });
 }
 
-// ── ANONYMOUS AUTH (silent sign-in before any Firebase reads/writes) ──────────
+// ── LOGIN (real email/password auth — every screen in the app is gated behind this) ──
 let _booted=false;
 function bootOnce(){if(_booted)return;_booted=true;boot();}
-firebase.auth().onAuthStateChanged(u=>{if(u)bootOnce();});
-firebase.auth().signInAnonymously().catch(e=>{
-  console.warn('Anonymous sign-in failed:',e&&e.code);
-  bootOnce(); // still boot so cached UI works offline; writes queue as usual
+function showLoginErr(msg){const e=$('loginErrMsg');if(e){e.textContent=msg;e.style.display=msg?'block':'none';}}
+function doLogin(){
+  const email=(($('loginEmail')||{}).value||'').trim();
+  const pw=($('loginPassword')||{}).value||'';
+  if(!email||!pw){showLoginErr('Enter your email and password');return;}
+  showLoginErr('');
+  const btn=$('loginBtn');if(btn){btn.disabled=true;btn.textContent='Signing in…';}
+  firebase.auth().signInWithEmailAndPassword(email,pw).catch(()=>{
+    showLoginErr('Wrong email or password');
+    if(btn){btn.disabled=false;btn.textContent='Sign In';}
+  });
+  // on success, onAuthStateChanged below fires with a real user and proceeds into the app
+}
+function doSignOut(){
+  if(_usageRef){_usageRef.off();_usageRef=null;}
+  if(_shopRef){_shopRef.off();_shopRef=null;}
+  team=null;localStorage.removeItem('g_team');
+  allUsage={};shopFlags={};searchQ='';whQ='';popup=null;repDetail=null;whDetail=null;grab=false;fbOpen=false;
+  _booted=false;
+  firebase.auth().signOut();
+  // onAuthStateChanged below fires with null and shows the login screen again
+}
+firebase.auth().onAuthStateChanged(u=>{
+  if(u){bootOnce();}
+  else{_booted=false;scr='login';render();}
 });
-setTimeout(bootOnce,5000); // safety net: never leave the app stuck on a blank screen
+setTimeout(()=>{if(!_booted&&scr!=='login'){scr='login';render();}},6000); // safety net: never leave the app stuck on a blank screen
 
 // service worker (offline caching of app shell, JSON, and images)
 if('serviceWorker' in navigator && location.protocol==='https:'){
