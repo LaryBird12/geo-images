@@ -1045,6 +1045,10 @@ function doSignOut(){
   // onAuthStateChanged below fires with null and shows the login screen again
 }
 firebase.auth().onAuthStateChanged(u=>{
+  // Leftover anonymous sessions from before this login layer shipped are NOT valid logins —
+  // disabling Anonymous sign-in in Firebase only blocks NEW anonymous sessions, it doesn't
+  // retroactively sign out ones that already existed. Reject them explicitly and force real login.
+  if(u&&u.isAnonymous){firebase.auth().signOut();return;}
   if(u){bootOnce();}
   else{_booted=false;scr='login';render();}
 });
