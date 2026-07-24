@@ -492,7 +492,9 @@ function printReorder(){
   // Fixed % widths, identical on every vendor table (with table-layout:fixed below) so all six
   // columns line up in one straight grid top-to-bottom, instead of each vendor's table sizing its
   // own columns to just its own content (which is what made the ABR row look shifted).
-  const colWidths=[30,12,12,16,10,20];
+  // Web Link swapped out for Vendor Part # (2026-07-22, Mitch's ask -- Jesse orders off the part
+  // number, not a clickable link, on the printed sheet). Web Link stays on screen/CSV, unchanged.
+  const colWidths=[26,14,12,12,16,20];
   const colgroup='<colgroup>'+colWidths.map(w=>'<col style="width:'+w+'%">').join('')+'</colgroup>';
 
   b+=vendorNames.map((v,vi)=>{
@@ -501,10 +503,9 @@ function printReorder(){
     // the thead (vendor name row + column-title row) reprints on any overflow page for free.
     let t='<table class="vgroup'+(vi>0?' pagebreak':'')+'">'+colgroup;
     t+='<thead><tr><th colspan="6" class="vname">'+esc(v)+'</th></tr>';
-    t+='<tr>'+['Part','Shop Min','Order Qty','VEN Case QTY','Web Link','Flagged By'].map(hh=>'<th>'+hh+'</th>').join('')+'</tr></thead>';
+    t+='<tr>'+['Part','Vendor Part #','Shop Min','Order Qty','VEN Case QTY','Flagged By'].map(hh=>'<th>'+hh+'</th>').join('')+'</tr></thead>';
     t+='<tbody>'+items.map(r=>{
-      const link=r.venUrl?'<a href="'+h(r.venUrl)+'">Web Link</a>':'—';
-      return '<tr><td>'+esc(r.name)+'</td><td class="num">'+nz(r.shopMin)+'</td><td class="num">'+nz(r.orderQty)+'</td><td class="num">'+nz(r.venCaseQty)+'</td><td>'+link+'</td><td>'+esc(r.teamLabel)+'</td></tr>';
+      return '<tr><td>'+esc(r.name)+'</td><td>'+nz(r.vendorPart)+'</td><td class="num">'+nz(r.shopMin)+'</td><td class="num">'+nz(r.orderQty)+'</td><td class="num">'+nz(r.venCaseQty)+'</td><td>'+esc(r.teamLabel)+'</td></tr>';
     }).join('')+'</tbody></table>';
     return t;
   }).join('');
